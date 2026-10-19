@@ -1,8 +1,50 @@
 <?php
-if ( ! defined( 'ABSPATH' ) ) { exit; }
+/**
+ * Category & Department Delete Handlers.
+ *
+ * @package Ifs_Parking
+ */
 
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
+/**
+ * একক ক্যাটাগরি ডিলিট হ্যান্ডলার
+ *
+ * @param string $table_cats ক্যাটাগরি টেবিল নাম।
+ * @param int    $cat_id     ক্যাটাগরি আইডি।
+ */
 function ifs_parking_delete_category( $table_cats, $cat_id ) {
     global $wpdb;
-    $wpdb->delete( $table_cats, array( 'id' => $cat_id ) );
-    echo '<div class="notice notice-success is-dismissible" style="border-radius:10px; border-left: 4px solid #10b981; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 20px;"><p>✨ ক্যাটাগরি সফলভাবে ডিলিট করা হয়েছে!</p></div>';
+
+    $cat_id = intval( $cat_id );
+
+    if ( $cat_id > 0 ) {
+        $wpdb->delete(
+            $table_cats,
+            array( 'id' => $cat_id ),
+            array( '%d' )
+        );
+    }
+}
+
+/**
+ * সম্পূর্ণ ডিপার্টমেন্ট ও এর অন্তর্ভুক্ত সকল প্যাকেজ ডিলিট হ্যান্ডলার
+ *
+ * @param string $table_cats ক্যাটাগরি টেবিল নাম।
+ * @param string $dept_name  ডিপার্টমেন্ট নাম।
+ */
+function ifs_parking_delete_department( $table_cats, $dept_name ) {
+    global $wpdb;
+
+    $dept_name = sanitize_text_field( $dept_name );
+
+    if ( ! empty( $dept_name ) ) {
+        $wpdb->delete(
+            $table_cats,
+            array( 'department' => $dept_name ),
+            array( '%s' )
+        );
+    }
 }

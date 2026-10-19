@@ -6,55 +6,82 @@
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
-	exit;
+    exit;
 }
 
 /**
- * একক গাড়ির বিস্তারিত ভিউ রেন্ডারার
+ * একক গাড়ির বিস্তারিত বিবরণ রেন্ডারার
  *
  * @param string $table_logs      লগ টেবিল নাম।
  * @param int    $log_id          লগ আইডি।
  * @param string $currency_symbol কারেন্সি প্রতীক।
  */
 function ifs_parking_render_vehicle_view( $table_logs, $log_id, $currency_symbol ) {
-	global $wpdb;
-	$log = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_logs WHERE id = %d", $log_id ) );
+    global $wpdb;
+    
+    $log_id = intval( $log_id );
+    $vehicle = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_logs WHERE id = %d", $log_id ) );
 
-	if ( ! $log ) {
-		echo '<div class="notice notice-error ifs-custom-notice-err"><p>' . esc_html__( 'রেকর্ড পাওয়া যায়নি।', 'ifs-parking' ) . '</p></div>';
-		return;
-	}
-	?>
-	<div class="ifs-card ifs-view-container">
-		<div class="ifs-view-header">
-			<div>
-				<h3 class="ifs-view-title"><?php esc_html_e( 'পার্কিং লগ বিস্তারিত বিবরণ', 'ifs-parking' ); ?></h3>
-				<p class="ifs-card-subtitle">ID #<?php echo esc_html( $log->id ); ?> - <?php echo esc_html( $log->vehicle_number ); ?></p>
-			</div>
-			<a href="<?php echo esc_url( admin_url( 'admin.php?page=ifs-parking-vehicles' ) ); ?>" class="ifs-btn-back">
-				<svg class="ifs-svg-sm" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
-				<?php esc_html_e( 'তালিকায় ফিরে যান', 'ifs-parking' ); ?>
-			</a>
-		</div>
+    if ( ! $vehicle ) {
+        echo '<div class="notice notice-error"><p>' . esc_html__( 'কোনো গাড়ি বা লগ রেকর্ড পাওয়া যায়নি!', 'ifs-parking' ) . '</p></div>';
+        return;
+    }
 
-		<div class="ifs-view-grid">
-			<div class="ifs-info-tile">
-				<span class="ifs-tile-label"><?php esc_html_e( 'গাড়ি নম্বর', 'ifs-parking' ); ?></span>
-				<strong class="ifs-tile-value"><?php echo esc_html( $log->vehicle_number ); ?></strong>
-			</div>
-			<div class="ifs-info-tile">
-				<span class="ifs-tile-label"><?php esc_html_e( 'স্ট্যাটাস', 'ifs-parking' ); ?></span>
-				<span class="ifs-tile-value"><?php echo esc_html( $log->status ); ?></span>
-			</div>
-			<div class="ifs-info-tile">
-				<span class="ifs-tile-label"><?php esc_html_e( 'চালক', 'ifs-parking' ); ?></span>
-				<span class="ifs-tile-value"><?php echo esc_html( ! empty( $log->driver_name ) ? $log->driver_name : 'N/A' ); ?></span>
-			</div>
-			<div class="ifs-info-tile">
-				<span class="ifs-tile-label"><?php esc_html_e( 'প্রযুক্ত ফি', 'ifs-parking' ); ?></span>
-				<span class="ifs-tile-value"><?php echo esc_html( $currency_symbol . number_format( (float) $log->fee, 2 ) ); ?></span>
-			</div>
-		</div>
-	</div>
-	<?php
+    $back_url = admin_url( 'admin.php?page=ifs-parking-vehicles&tab=all_vehicles' );
+    $invoice_num = ! empty( $vehicle->reference_id ) ? strtok( $vehicle->reference_id, ' [' ) : 'NPMS-' . str_pad( $vehicle->id, 4, '0', STR_PAD_LEFT );
+    ?>
+    <div class="ifs-card" style="max-width: 800px; margin: 20px auto; padding: 30px; background: #fff; border-radius: 14px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 20px;">
+            <h3 style="margin: 0; font-size: 20px; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+                🚗 <?php esc_html_e( 'গাড়ির বিস্তারিত বিবরণ', 'ifs-parking' ); ?> (#<?php echo esc_html( $vehicle->id ); ?>)
+            </h3>
+            <a href="<?php echo esc_url( $back_url ); ?>" style="background: #e2e8f0; color: #334155; padding: 6px 14px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px;">
+                ← <?php esc_html_e( 'তালিকায় ফিরে যান', 'ifs-parking' ); ?>
+            </a>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 14px; color: #334155;">
+            <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <strong><?php esc_html_e( 'ইনভয়েস নং:', 'ifs-parking' ); ?></strong><br>
+                <span style="color: #0284c7; font-weight: 700;"><?php echo esc_html( $invoice_num ); ?></span>
+            </div>
+            <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <strong><?php esc_html_e( 'গাড়ি নম্বর:', 'ifs-parking' ); ?></strong><br>
+                <span style="font-size: 16px; font-weight: 700; color: #0f172a;"><?php echo esc_html( $vehicle->vehicle_number ); ?></span>
+            </div>
+            <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <strong><?php esc_html_e( 'ডিপার্টমেন্ট / রেফারেন্স:', 'ifs-parking' ); ?></strong><br>
+                <?php echo esc_html( ! empty( $vehicle->reference_id ) ? $vehicle->reference_id : 'General' ); ?>
+            </div>
+            <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <strong><?php esc_html_e( 'ক্যাটাগরি / ধরণ:', 'ifs-parking' ); ?></strong><br>
+                <?php echo esc_html( ucfirst( $vehicle->parking_type ) ); ?>
+            </div>
+            <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <strong><?php esc_html_e( 'নির্ধারিত ফি:', 'ifs-parking' ); ?></strong><br>
+                <span style="color: #10b981; font-weight: 700;"><?php echo esc_html( $currency_symbol . number_format( (float) $vehicle->fee, 2 ) ); ?></span>
+            </div>
+            <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <strong><?php esc_html_e( 'স্ট্যাটাস:', 'ifs-parking' ); ?></strong><br>
+                <?php if ( 'Parked' === $vehicle->status ) : ?>
+                    <span style="color: #d97706; font-weight: 600;"><?php esc_html_e( 'পার্ক করা আছে', 'ifs-parking' ); ?></span>
+                <?php else : ?>
+                    <span style="color: #059669; font-weight: 600;"><?php esc_html_e( 'বের হয়ে গেছে (Completed)', 'ifs-parking' ); ?></span>
+                <?php endif; ?>
+            </div>
+            <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <strong><?php esc_html_e( 'চালকের নাম:', 'ifs-parking' ); ?></strong><br>
+                <?php echo esc_html( ! empty( $vehicle->driver_name ) ? $vehicle->driver_name : 'তথ্য নেই' ); ?>
+            </div>
+            <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <strong><?php esc_html_e( 'চালকের ফোন:', 'ifs-parking' ); ?></strong><br>
+                <?php echo esc_html( ! empty( $vehicle->driver_phone ) ? $vehicle->driver_phone : 'তথ্য নেই' ); ?>
+            </div>
+            <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; grid-column: span 2;">
+                <strong><?php esc_html_e( 'প্রবেশের সময়:', 'ifs-parking' ); ?></strong><br>
+                <?php echo esc_html( $vehicle->entry_time ); ?>
+            </div>
+        </div>
+    </div>
+    <?php
 }

@@ -2,7 +2,7 @@
 /**
  * Database Table Setup (Schema Only).
  *
- * @package Ifs_Parking
+ * @package DevnahianPMS
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -10,16 +10,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * প্লাগইন অ্যাক্টিভেশন ফাংশন (শুধুমাত্র টেবিল তৈরি করবে)
+ * Plugin activation hook callback to create and update database tables.
+ *
+ * @since 1.0.0
+ * @return void
  */
-function ifs_parking_activate() {
+function devnahian_pms_activate() {
 	global $wpdb;
 
 	$charset_collate = $wpdb->get_charset_collate();
 
-	// ১. পার্কিং লগ টেবিল
-	$table_logs = $wpdb->prefix . 'ifs_parking_logs';
-	$sql_logs   = "CREATE TABLE $table_logs (
+	// 1. Parking Logs Table.
+	$table_logs = $wpdb->prefix . 'devnahian_pms_logs';
+	$sql_logs   = "CREATE TABLE {$table_logs} (
 		id mediumint(9) NOT NULL AUTO_INCREMENT,
 		vehicle_number varchar(100) NOT NULL,
 		parking_type varchar(50) NOT NULL,
@@ -34,11 +37,11 @@ function ifs_parking_activate() {
 		fee decimal(10,2) DEFAULT 0.00,
 		status varchar(20) DEFAULT 'Parked',
 		PRIMARY KEY  (id)
-	) $charset_collate;";
+	) {$charset_collate};";
 
-	// ২. ক্যাটাগরি ও রেট টেবিল
-	$table_cats = $wpdb->prefix . 'ifs_parking_categories';
-	$sql_cats   = "CREATE TABLE $table_cats (
+	// 2. Categories & Tariffs Table.
+	$table_cats = $wpdb->prefix . 'devnahian_pms_categories';
+	$sql_cats   = "CREATE TABLE {$table_cats} (
 		id mediumint(9) NOT NULL AUTO_INCREMENT,
 		department varchar(150) DEFAULT 'General',
 		category_slug varchar(50) NOT NULL,
@@ -51,22 +54,22 @@ function ifs_parking_activate() {
 		free_hours int(11) DEFAULT 0,
 		is_free tinyint(1) DEFAULT 0,
 		PRIMARY KEY  (id)
-	) $charset_collate;";
+	) {$charset_collate};";
 
-	// ৩. স্লট টেবিল
-	$table_slots = $wpdb->prefix . 'ifs_parking_slots';
-	$sql_slots   = "CREATE TABLE $table_slots (
+	// 3. Parking Slots Table.
+	$table_slots = $wpdb->prefix . 'devnahian_pms_slots';
+	$sql_slots   = "CREATE TABLE {$table_slots} (
 		id mediumint(9) NOT NULL AUTO_INCREMENT,
 		slot_name varchar(50) NOT NULL,
 		slot_zone varchar(50) DEFAULT 'Main Zone',
 		vehicle_type varchar(50) DEFAULT 'Car',
 		is_occupied tinyint(1) DEFAULT 0,
 		PRIMARY KEY  (id)
-	) $charset_collate;";
+	) {$charset_collate};";
 
-	// ৪. স্টাফ ও অপারেটর টেবিল
-	$table_staff = $wpdb->prefix . 'ifs_parking_staff';
-	$sql_staff   = "CREATE TABLE $table_staff (
+	// 4. Staff & Operators Table.
+	$table_staff = $wpdb->prefix . 'devnahian_pms_staff';
+	$sql_staff   = "CREATE TABLE {$table_staff} (
 		id mediumint(9) NOT NULL AUTO_INCREMENT,
 		staff_name varchar(150) NOT NULL,
 		email varchar(100) NOT NULL,
@@ -76,11 +79,11 @@ function ifs_parking_activate() {
 		duty_slot varchar(100) DEFAULT '',
 		profile_img varchar(255) DEFAULT '',
 		PRIMARY KEY  (id)
-	) $charset_collate;";
+	) {$charset_collate};";
 
-    // ৫. মেম্বারশিপ ও সাবস্ক্রিপশন টেবিল
-	$table_members = $wpdb->prefix . 'ifs_parking_memberships';
-	$sql_members   = "CREATE TABLE $table_members (
+	// 5. Memberships & Subscriptions Table.
+	$table_members = $wpdb->prefix . 'devnahian_pms_memberships';
+	$sql_members   = "CREATE TABLE {$table_members} (
 		id mediumint(9) NOT NULL AUTO_INCREMENT,
 		member_name varchar(150) NOT NULL,
 		member_phone varchar(50) NOT NULL,
@@ -93,10 +96,9 @@ function ifs_parking_activate() {
 		status varchar(20) DEFAULT 'Active',
 		created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
 		PRIMARY KEY  (id)
-	) $charset_collate;";
+	) {$charset_collate};";
 
-
-	// WordPress dbDelta ফাংশন কল
+	// Execute dbDelta to create tables safely.
 	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 	dbDelta( $sql_logs );
 	dbDelta( $sql_cats );
@@ -104,14 +106,14 @@ function ifs_parking_activate() {
 	dbDelta( $sql_staff );
 	dbDelta( $sql_members );
 
-	// ডিফল্ট বেসিক অপশন সেটিংস
-	if ( ! get_option( 'ifs_parking_currency' ) ) {
-		add_option( 'ifs_parking_currency', 'BDT (৳)' );
+	// Default option settings.
+	if ( ! get_option( 'devnahian_pms_currency' ) ) {
+		add_option( 'devnahian_pms_currency', 'BDT (৳)' );
 	}
-	if ( ! get_option( 'ifs_parking_prefix' ) ) {
-		add_option( 'ifs_parking_prefix', 'IFS-' );
+	if ( ! get_option( 'devnahian_pms_prefix' ) ) {
+		add_option( 'devnahian_pms_prefix', 'NPMS-' );
 	}
-	if ( ! get_option( 'ifs_parking_site_title' ) ) {
-		add_option( 'ifs_parking_site_title', 'IFS Parking System' );
+	if ( ! get_option( 'devnahian_pms_site_title' ) ) {
+		add_option( 'devnahian_pms_site_title', 'Devnahian PMS' );
 	}
 }
