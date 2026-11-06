@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * সকল গাড়ির তালিকা টেবিল রেন্ডারার
  *
- * @param string $table_logs      লগ টেবিল নাম।
+ * @param string $table_logs       লগ টেবিল নাম।
  * @param string $currency_symbol কারেন্সি প্রতীক।
  * @param int    $auto_print_id   অটো প্রিন্ট আইডি।
  */
@@ -22,13 +22,70 @@ function ifs_parking_render_vehicle_list( $table_logs, $currency_symbol, $auto_p
     $site_title   = get_option( 'ifs_parking_site_title', 'IFS PARKING SYSTEM' );
     $system_phone = get_option( 'ifs_parking_contact_phone', '+৮৮০ ১৭০০-০০০০০০' );
     ?>
+    <style>
+        /* ভেহিক্যাল লিস্ট রেসপনসিভনেস (কালার অপরিবর্তিত) */
+        .ifs-table-container-card {
+            box-sizing: border-box;
+        }
+        .ifs-veh-list-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8fafc;
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .ifs-search-wrapper {
+            position: relative;
+            width: 280px;
+        }
+        .ifs-table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .ifs-custom-data-table {
+            min-width: 820px;
+        }
+
+        /* ট্যাবলেট এবং মোবাইল ভিউপোর্ট রুলস */
+        @media screen and (max-width: 782px) {
+            .ifs-veh-list-header {
+                flex-direction: column;
+                align-items: stretch;
+                padding: 14px;
+            }
+            .ifs-search-wrapper {
+                width: 100%;
+            }
+            #ifs-vehicle-search {
+                height: 44px;
+                font-size: 16px !important;
+                box-sizing: border-box;
+            }
+            .ifs-actions-row {
+                flex-wrap: wrap;
+                gap: 6px !important;
+            }
+            .ifs-actions-row a,
+            .ifs-actions-row button {
+                padding: 6px 10px !important;
+                font-size: 12px !important;
+            }
+        }
+    </style>
+
     <div class="ifs-card ifs-table-container-card">
         <!-- লাইভ সার্চ ইনপুট হেডার -->
-        <div style="padding: 15px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; border-top-left-radius: 10px; border-top-right-radius: 10px;">
+        <div class="ifs-veh-list-header">
             <h3 style="margin: 0; font-size: 16px; color: #1e293b; display: flex; align-items: center; gap: 8px;">
                 📋 <?php esc_html_e( 'পার্কিং এন্ট্রি ও ইনভয়েস তালিকা', 'ifs-parking' ); ?>
             </h3>
-            <div style="position: relative; width: 280px;">
+            <div class="ifs-search-wrapper">
                 <input type="text" id="ifs-vehicle-search" placeholder="<?php esc_attr_e( 'ইনভয়েস বা গাড়ি নম্বর দিয়ে খুঁজুন...', 'ifs-parking' ); ?>" style="width: 100%; padding: 8px 12px 8px 32px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; outline: none; background: #fff;">
                 <span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 14px;">🔍</span>
             </div>
@@ -67,7 +124,7 @@ function ifs_parking_render_vehicle_list( $table_logs, $currency_symbol, $auto_p
                                 $dept_val = rtrim( trim( $parts[1] ), ']' );
                             }
 
-                            // Car-general বা হাইফেন জাতীয় নাম থেকে শুধু প্রথম অংশ (যেমন: Car) আলাদা করা
+                            // Car-general বা হাইফেন জাতীয় নাম থেকে শুধু প্রথম অংশ (যেমন: Car) আলাদা করা
                             $raw_type     = $log->parking_type;
                             if ( false !== strpos( $raw_type, '-' ) ) {
                                 $type_parts = explode( '-', $raw_type );
@@ -126,7 +183,7 @@ function ifs_parking_render_vehicle_list( $table_logs, $currency_symbol, $auto_p
                                     <div class="ifs-actions-row" style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
                                         <!-- ভিউ বাটন -->
                                         <a href="<?php echo esc_url( $view_url ); ?>" class="ifs-btn-action ifs-btn-view" title="<?php esc_attr_e( 'বিস্তারিত দেখুন', 'ifs-parking' ); ?>" style="padding: 4px 8px; background: #e0f2fe; color: #0284c7; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 11px;">
-                                            ভিউ
+                                            <?php esc_html_e( 'ভিউ', 'ifs-parking' ); ?>
                                         </a>
 
                                         <!-- রসিদ প্রিন্ট বাটন -->
@@ -156,7 +213,7 @@ function ifs_parking_render_vehicle_list( $table_logs, $currency_symbol, $auto_p
 
                                         <!-- ডিলিট বাটন -->
                                         <a href="<?php echo esc_url( $delete_url ); ?>" onclick="return confirm('<?php echo esc_js( __( 'আপনি কি নিশ্চিতভাবে এই পার্কিং রেকর্ডটি মুছে ফেলতে চান?', 'ifs-parking' ) ); ?>');" class="ifs-btn-action ifs-btn-delete" title="<?php esc_attr_e( 'ডিলিট করুন', 'ifs-parking' ); ?>" style="padding: 4px 8px; background: #fee2e2; color: #b91c1c; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 11px;">
-                                            ডিলিট
+                                            <?php esc_html_e( 'ডিলিট', 'ifs-parking' ); ?>
                                         </a>
                                     </div>
                                 </td>

@@ -1,17 +1,17 @@
 <?php
 /**
- * Plugin Name:       IFS Parking Management System (Admin Panel Only)
- * Plugin URI:        https://example.com/ifs-parking
- * Description:       আব্দুল্লাহ নাইয়ান-এর জন্য তৈরি এক্সক্লুসিভ এডমিন প্যানেল এবং সেপারেট ডাটাবেজ সংবলিত পার্কিং সিস্টেম।
- * Version:           1.0.0
+ * Plugin Name:      IFS Parking Management System (Admin Panel Only)
+ * Plugin URI:       https://example.com/ifs-parking
+ * Description:      আব্দুল্লাহ নাইয়ান-এর জন্য তৈরি এক্সক্লুসিভ এডমিন প্যানেল এবং সেপারেট ডাটাবেজ সংবলিত পার্কিং সিস্টেম।
+ * Version:          1.1.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
- * Author:            Abdullah Nahian
- * Author URI:        https://example.com
- * Text Domain:       ifs-parking
- * Domain Path:       /languages
- * License:           GPL v2 or later
- * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
+ * Author:           Abdullah Nahian
+ * Author URI:       https://example.com
+ * Text Domain:      ifs-parking
+ * Domain Path:      /languages
+ * License:          GPL v2 or later
+ * License URI:      https://www.gnu.org/licenses/gpl-2.0.html
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // প্লাগইন কনস্ট্যান্ট
-define( 'IFS_PARKING_VERSION', '1.0.0' );
+define( 'IFS_PARKING_VERSION', '1.1.0' );
 define( 'IFS_PARKING_PATH', plugin_dir_path( __FILE__ ) );
 define( 'IFS_PARKING_URL', plugin_dir_url( __FILE__ ) );
 
@@ -83,10 +83,10 @@ function ifs_parking_admin_enqueue_assets( $hook ) {
     );
 
     global $wpdb;
-    $table_cats        = $wpdb->prefix . 'ifs_parking_categories';
-    $all_categories    = $wpdb->get_results( "SELECT * FROM {$table_cats} ORDER BY id ASC" );
-    $currency_setting  = get_option( 'ifs_parking_currency', 'BDT (৳)' );
-    $currency_symbol   = false !== strpos( $currency_setting, '৳' ) ? '৳' : ( false !== strpos( $currency_setting, '€' ) ? '€' : ( false !== strpos( $currency_setting, '£' ) ? '£' : '$' ) );
+    $table_cats         = $wpdb->prefix . 'ifs_parking_categories';
+    $all_categories     = $wpdb->get_results( "SELECT * FROM {$table_cats} ORDER BY id ASC" );
+    $currency_setting   = get_option( 'ifs_parking_currency', 'BDT (৳)' );
+    $currency_symbol    = false !== strpos( $currency_setting, '৳' ) ? '৳' : ( false !== strpos( $currency_setting, '€' ) ? '€' : ( false !== strpos( $currency_setting, '£' ) ? '£' : '$' ) );
 
     wp_localize_script(
         'ifs-parking-admin-js',
@@ -140,18 +140,19 @@ function ifs_parking_login_logo_url_title() {
 add_filter( 'login_headertext', 'ifs_parking_login_logo_url_title' );
 
 /**
- * প্রফেশনাল ও ক্লিন ডিফল্ট ওয়ার্ডপ্রেস লগইন ডিজাইন (Light Theme) - Settings থেকে লোগো ও নাম ফেচ করা
+ * সুপার মোবাইল ফ্রেন্ডলি ও রেসপন্সিভ লগইন ডিজাইন (Light Theme)
  */
 function ifs_parking_clean_default_login_styles() {
     $site_title = get_option( 'ifs_parking_site_title', 'IFS Parking System' );
     $site_logo  = get_option( 'ifs_parking_site_logo', '' );
     ?>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <style type="text/css">
-        /* বডি ও ব্যাকগ্রাউন্ড */
+        /* বডি ও ব্যাকগ্রাউন্ড অপ্টিমাইজেশন */
         body.login {
             background: #f1f5f9 !important;
             font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif !important;
@@ -162,18 +163,25 @@ function ifs_parking_clean_default_login_styles() {
             justify-content: center;
             min-height: 100vh;
             margin: 0;
-            padding: 20px;
+            padding: 16px !important;
             box-sizing: border-box;
+            overflow-x: hidden;
         }
 
         #login {
             width: 100% !important;
-            max-width: 400px !important;
+            max-width: 380px !important;
             padding: 0 !important;
             margin: auto !important;
+            box-sizing: border-box;
         }
 
-        /* লোগো ও হেডার টাইটেল */
+        /* লোগো ও হেডার টাইটেল মোবাইল ফ্রেন্ডলি সাইজিং */
+        #login h1 {
+            padding: 0 !important;
+            margin: 0 0 10px 0 !important;
+        }
+
         #login h1 a {
             <?php if ( ! empty( $site_logo ) ) : ?>
                 background-image: url('<?php echo esc_url( $site_logo ); ?>') !important;
@@ -181,7 +189,7 @@ function ifs_parking_clean_default_login_styles() {
                 background-repeat: no-repeat !important;
                 background-position: center !important;
                 width: 100% !important;
-                height: 70px !important;
+                height: 60px !important;
             <?php else : ?>
                 background: none !important;
                 text-indent: 0 !important;
@@ -196,22 +204,27 @@ function ifs_parking_clean_default_login_styles() {
         #login h1 a::after {
             content: '<?php echo esc_js( $site_title ); ?>';
             display: block;
-            font-size: 22px;
+            font-size: 20px;
             font-weight: 800;
             color: #0f172a;
             text-align: center;
-            padding-bottom: 10px;
+            padding-bottom: 5px;
+            word-break: break-word;
         }
         <?php endif; ?>
 
-        /* ফর্ম কার্ড ডিজাইন */
+        /* ফর্ম কার্ড ডিজাইন (মোবাইল প্যাডিং কমানো হয়েছে) */
         body.login form {
             background: #ffffff !important;
             border: 1px solid #e2e8f0 !important;
-            border-radius: 16px !important;
-            padding: 32px 28px !important;
-            box-shadow: 0 15px 35px -5px rgba(15, 23, 42, 0.08) !important;
-            margin-top: 16px !important;
+            border-radius: 14px !important;
+            padding: 24px 20px !important;
+            box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.06) !important;
+            margin-top: 10px !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
         }
 
         body.login label {
@@ -222,21 +235,22 @@ function ifs_parking_clean_default_login_styles() {
             display: block !important;
         }
 
-        /* ইনপুট ফিল্ড */
+        /* ইনপুট ফিল্ড (আইওএস জুম রোধ করতে ফন্ট সাইজ কমপক্ষে 16px রাখা হয়েছে) */
         body.login input[type="text"],
         body.login input[type="password"] {
             width: 100% !important;
-            height: 44px !important;
+            height: 48px !important;
             background: #f8fafc !important;
             border: 1.5px solid #cbd5e1 !important;
             border-radius: 8px !important;
             padding: 0 14px !important;
-            font-size: 14px !important;
+            font-size: 16px !important; 
             color: #0f172a !important;
             box-shadow: none !important;
             margin-bottom: 16px !important;
             box-sizing: border-box !important;
             transition: all 0.2s ease !important;
+            -webkit-appearance: none;
         }
 
         body.login input[type="text"]:focus,
@@ -247,24 +261,34 @@ function ifs_parking_clean_default_login_styles() {
             outline: none !important;
         }
 
-        /* রিমেম্বার মি */
+        /* রিমেম্বার মি চেকবক্স এবং লেআউট */
         body.login .forgetmenot {
             margin-bottom: 16px !important;
+            float: none !important;
+            display: flex;
+            align-items: center;
+        }
+
+        body.login .forgetmenot input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin-right: 8px;
         }
 
         body.login .forgetmenot label {
-            font-size: 12.5px !important;
+            font-size: 13px !important;
             color: #64748b !important;
             font-weight: 500 !important;
+            margin-bottom: 0 !important;
         }
 
-        /* লগইন বাটন */
+        /* লগইন বাটন (মোবাইলে ফিঙ্গার ট্যাপ করার উপযোগী বড় সাইজ) */
         body.login input[type="submit"] {
             background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
             border: none !important;
             border-radius: 8px !important;
-            height: 44px !important;
-            font-size: 14px !important;
+            height: 48px !important;
+            font-size: 15px !important;
             font-weight: 700 !important;
             color: #ffffff !important;
             box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25) !important;
@@ -272,14 +296,15 @@ function ifs_parking_clean_default_login_styles() {
             width: 100% !important;
             transition: all 0.2s ease !important;
             text-shadow: none !important;
+            float: none !important;
+            display: block;
         }
 
-        body.login input[type="submit"]:hover {
-            opacity: 0.95 !important;
-            transform: translateY(-1px) !important;
+        body.login input[type="submit"]:active {
+            transform: scale(0.98) !important;
         }
 
-        /* এরর ও নোটিস */
+        /* এরর ও নোটিস কন্টেইনার */
         body.login #login_error,
         body.login .message,
         body.login .notice {
@@ -288,8 +313,12 @@ function ifs_parking_clean_default_login_styles() {
             background: #ffffff !important;
             color: #dc2626 !important;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04) !important;
-            font-size: 12.5px !important;
+            font-size: 13px !important;
             margin-bottom: 16px !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding: 12px !important;
+            box-sizing: border-box;
         }
 
         body.login .message {
@@ -305,13 +334,25 @@ function ifs_parking_clean_default_login_styles() {
         }
 
         #nav a, #backtoblog a {
-            font-size: 12px !important;
+            font-size: 13px !important;
             color: #64748b !important;
             text-decoration: none !important;
+            padding: 4px;
         }
 
         #nav a:hover, #backtoblog a:hover {
             color: #0284c7 !important;
+        }
+
+        /* অতিরিক্ত ছোট পর্দার জন্য (Small Mobile Screens) */
+        @media screen and (max-width: 480px) {
+            body.login {
+                padding: 12px !important;
+            }
+            body.login form {
+                padding: 20px 16px !important;
+                border-radius: 12px !important;
+            }
         }
     </style>
     <?php

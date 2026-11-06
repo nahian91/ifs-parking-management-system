@@ -22,6 +22,81 @@ function ifs_parking_render_category_list( $table_cats, $currency_symbol ) {
         }
     }
     ?>
+    <style>
+        /* ক্যাটাগরি তালিকা রেসপনসিভনেস (কালার ও স্টাইল অপরিবর্তিত) */
+        .ifs-list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .ifs-table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .ifs-custom-data-table {
+            min-width: 680px;
+        }
+        .ifs-popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999999;
+            padding: 16px;
+            box-sizing: border-box;
+        }
+        .ifs-popup-box {
+            background: #ffffff;
+            border-radius: 14px;
+            padding: 24px;
+            max-width: 420px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            box-sizing: border-box;
+        }
+
+        /* ট্যাবলেট এবং মোবাইল ভিউপোর্ট রুলস */
+        @media screen and (max-width: 782px) {
+            .ifs-list-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+            .ifs-counter-badge-alt {
+                align-self: flex-start;
+            }
+            .ifs-popup-box {
+                padding: 20px 16px;
+                border-radius: 12px;
+            }
+            .ifs-popup-box .ifs-modal-actions {
+                flex-direction: column;
+                gap: 8px !important;
+            }
+            .ifs-popup-box button,
+            .ifs-popup-box a {
+                width: 100%;
+                box-sizing: border-box;
+                text-align: center;
+                height: 44px;
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+            }
+        }
+    </style>
+
     <div class="ifs-card ifs-table-container-card">
         <div class="ifs-list-header">
             <h3 class="ifs-list-title">
@@ -110,7 +185,7 @@ function ifs_parking_render_category_list( $table_cats, $currency_symbol ) {
             <div style="font-size: 38px; margin-bottom: 8px;">⚠️</div>
             <h3 style="color: #b91c1c; margin: 0 0 8px 0; font-size: 18px; font-weight: 700;"><?php esc_html_e( 'নিশ্চিতকরণ বার্তা', 'ifs-parking' ); ?></h3>
             <p id="ifs-delete-modal-text" style="color: #475569; font-size: 13.5px; margin: 0 0 20px 0; line-height: 1.5;"></p>
-            <div style="display: flex; gap: 10px; justify-content: center;">
+            <div class="ifs-modal-actions" style="display: flex; gap: 10px; justify-content: center;">
                 <button type="button" id="ifs-modal-cancel-btn" style="background: #e2e8f0; color: #334155; border: none; padding: 8px 18px; font-weight: 600; border-radius: 8px; cursor: pointer;"><?php esc_html_e( 'বাতিল', 'ifs-parking' ); ?></button>
                 <a href="#" id="ifs-modal-confirm-btn" style="background: #ef4444; color: #fff; text-decoration: none; padding: 8px 18px; font-weight: 600; border-radius: 8px; display: inline-block;"><?php esc_html_e( 'হ্যাঁ, ডিলিট করুন', 'ifs-parking' ); ?></a>
             </div>

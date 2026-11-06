@@ -23,9 +23,8 @@ function ifs_parking_save_vehicle_entry( $table_logs, $table_cats ) {
     }
 
     $div_val        = isset( $_POST['veh_div'] ) ? sanitize_text_field( wp_unslash( $_POST['veh_div'] ) ) : '';
-    $char_val       = isset( $_POST['veh_char'] ) ? sanitize_text_field( wp_unslash( $_POST['veh_char'] ) ) : '';
     $num_val        = isset( $_POST['veh_num'] ) ? sanitize_text_field( wp_unslash( $_POST['veh_num'] ) ) : '';
-    $vehicle_number = trim( $div_val . ' ' . $char_val . ' ' . $num_val );
+    $vehicle_number = trim( $div_val . ' ' . $num_val );
 
     $cat_id_selected = isset( $_POST['category_id'] ) ? intval( $_POST['category_id'] ) : 0;
     $billing_type    = isset( $_POST['selected_rate_type'] ) ? sanitize_text_field( wp_unslash( $_POST['selected_rate_type'] ) ) : 'hourly';
@@ -174,6 +173,106 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
         'Cycle' => __( 'সাইকেল (Cycle)', 'ifs-parking' ),
     );
     ?>
+    <style>
+        /* এন্ট্রি ফর্ম ও রসিদ সাইডবার রেসপনসিভনেস (কালার অপরিবর্তিত) */
+        .ifs-entry-container {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 20px;
+            align-items: start;
+        }
+        .ifs-plate-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 2fr;
+            gap: 10px;
+        }
+        .ifs-radio-pill-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        #ifs-package-panes-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .ifs-form-2col {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+        .ifs-receipt-sidebar {
+            width: 100%;
+        }
+
+        /* ট্যাবলেট এবং মিডিয়াম ভিউপোর্ট */
+        @media screen and (max-width: 1024px) {
+            .ifs-entry-container {
+                grid-template-columns: 1fr;
+            }
+            .ifs-receipt-sidebar {
+                order: 2;
+            }
+        }
+
+        /* মোবাইল স্ক্রিন রুলস */
+        @media screen and (max-width: 782px) {
+            .ifs-entry-container {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+            .ifs-plate-grid {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+            #ifs-package-panes-container {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+            .ifs-form-2col {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            .ifs-veh-input,
+            .ifs-file-input,
+            .ifs-step-box select {
+                font-size: 16px !important;
+                height: 44px;
+                width: 100%;
+                box-sizing: border-box;
+            }
+            .ifs-btn-submit,
+            .ifs-btn-print-full,
+            .ifs-btn-print-dark {
+                width: 100%;
+                justify-content: center;
+                height: 48px;
+                box-sizing: border-box;
+            }
+            .ifs-radio-pill {
+                flex: 1 1 calc(50% - 8px);
+            }
+            .ifs-pill-label {
+                width: 100%;
+                justify-content: center;
+                box-sizing: border-box;
+                text-align: center;
+                padding: 10px 8px;
+            }
+            .ifs-receipt-preview-card {
+                padding: 16px;
+            }
+        }
+
+        @media screen and (max-width: 480px) {
+            .ifs-radio-pill {
+                flex: 1 1 100%;
+            }
+        }
+    </style>
+
     <div class="ifs-entry-container">
         <!-- চেক-ইন ফরম -->
         <div class="ifs-card ifs-form-card">
@@ -188,33 +287,21 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
                 <input type="hidden" name="category_id" id="ifs-hidden-cat-id" value="">
                 <input type="hidden" name="selected_rate_type" id="ifs-hidden-rate-type" value="hourly">
 
-                <!-- গাড়ি নম্বর প্লেট -->
+                <!-- শর্ট ও সিম্পল গাড়ি নম্বর প্লেট (বর্ণ বাদ দেওয়া হয়েছে) -->
                 <div class="ifs-form-field-group">
-                    <label class="ifs-form-label"><?php esc_html_e( 'গাড়ি নম্বর প্লেট *', 'ifs-parking' ); ?></label>
+                    <label class="ifs-form-label"><?php esc_html_e( 'গাড়ি নম্বর *', 'ifs-parking' ); ?></label>
                     <div class="ifs-plate-grid">
                         <select name="veh_div" id="f-div" class="ifs-veh-input" required>
-                            <option value=""><?php esc_html_e( 'বিভাগ', 'ifs-parking' ); ?></option>
+                            <option value=""><?php esc_html_e( 'মেট্রো / বিভাগ নির্বাচন করুন', 'ifs-parking' ); ?></option>
                             <option value="ঢাকা মেট্রো"><?php esc_html_e( 'ঢাকা মেট্রো', 'ifs-parking' ); ?></option>
-                            <option value="চট্ট মেট্রো"><?php esc_html_e( 'চট্ট মেট্রো', 'ifs-parking' ); ?></option>
                             <option value="সিলেট মেট্রো"><?php esc_html_e( 'সিলেট মেট্রো', 'ifs-parking' ); ?></option>
+                            <option value="চট্ট মেট্রো"><?php esc_html_e( 'চট্ট মেট্রো', 'ifs-parking' ); ?></option>
                             <option value="রাজশাহী মেট্রো"><?php esc_html_e( 'রাজশাহী মেট্রো', 'ifs-parking' ); ?></option>
                             <option value="খুলনা মেট্রো"><?php esc_html_e( 'খুলনা মেট্রো', 'ifs-parking' ); ?></option>
                             <option value="বরিশাল মেট্রো"><?php esc_html_e( 'বরিশাল মেট্রো', 'ifs-parking' ); ?></option>
                             <option value="রংপুর মেট্রো"><?php esc_html_e( 'রংপুর মেট্রো', 'ifs-parking' ); ?></option>
                         </select>
-                        <select name="veh_char" id="f-char" class="ifs-veh-input" required>
-                            <option value=""><?php esc_html_e( 'বর্ণ', 'ifs-parking' ); ?></option>
-                            <option value="ক">ক</option>
-                            <option value="খ">খ</option>
-                            <option value="গ">গ</option>
-                            <option value="ঘ">ঘ</option>
-                            <option value="চ">চ</option>
-                            <option value="ছ">ছ</option>
-                            <option value="ট">ট</option>
-                            <option value="হ">হ</option>
-                            <option value="ল">ল</option>
-                        </select>
-                        <input type="text" name="veh_num" id="f-num" class="ifs-veh-input" required placeholder="১১-১২৩৪">
+                        <input type="text" name="veh_num" id="f-num" class="ifs-veh-input" required placeholder="<?php esc_attr_e( 'নম্বর লিখুন (যেমন: ১১-১২৩৪ বা গ-১১-১২৩৪)', 'ifs-parking' ); ?>">
                     </div>
                 </div>
 
@@ -260,14 +347,14 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
                     <div id="ifs-package-panes-container"></div>
                 </div>
 
-                <!-- চালক ও ফোন -->
+                <!-- চালক ও ফোন (ঐচ্ছিক / Optional) -->
                 <div class="ifs-form-2col">
                     <div>
-                        <label class="ifs-form-label-sm"><?php esc_html_e( 'চালকের নাম', 'ifs-parking' ); ?></label>
-                        <input type="text" name="driver_name" id="f-name" class="ifs-veh-input" placeholder="<?php esc_attr_e( 'পুরো নাম', 'ifs-parking' ); ?>">
+                        <label class="ifs-form-label-sm"><?php esc_html_e( 'চালকের নাম (ঐচ্ছিক)', 'ifs-parking' ); ?></label>
+                        <input type="text" name="driver_name" id="f-name" class="ifs-veh-input" placeholder="<?php esc_attr_e( 'পুরো নাম (প্রয়োজন হলে লিখুন)', 'ifs-parking' ); ?>">
                     </div>
                     <div>
-                        <label class="ifs-form-label-sm"><?php esc_html_e( 'চালকের ফোন', 'ifs-parking' ); ?></label>
+                        <label class="ifs-form-label-sm"><?php esc_html_e( 'চালকের ফোন (ঐচ্ছিক)', 'ifs-parking' ); ?></label>
                         <input type="text" name="driver_phone" id="f-phone" class="ifs-veh-input" placeholder="০১XXXXXXXXX">
                     </div>
                 </div>
@@ -391,7 +478,6 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
         var idInput = document.getElementById('ifs-gym-emp-id-input');
 
         var fDiv = document.getElementById('f-div');
-        var fChar = document.getElementById('f-char');
         var fNum = document.getElementById('f-num');
         var fName = document.getElementById('f-name');
         var fPhone = document.getElementById('f-phone');
@@ -477,7 +563,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
             });
 
             if (!matchingCat) {
-                pkgContainer.innerHTML = '<p class="ifs-txt-err" style="grid-column: span 3;">কোনো প্যাকেজ পাওয়া যায়নি।</p>';
+                pkgContainer.innerHTML = '<p class="ifs-txt-err" style="grid-column: 1 / -1;">কোনো প্যাকেজ পাওয়া যায়নি।</p>';
                 hiddenCatId.value = '';
                 return;
             }
@@ -527,10 +613,9 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
         }
 
         function updateReceiptPreview() {
-            var div = fDiv.value || '';
-            var chr = fChar.value || '';
-            var num = fNum.value || '';
-            var fullVeh = (div + ' ' + chr + ' ' + num).trim();
+            var div = fDiv ? (fDiv.value || '') : '';
+            var num = fNum ? (fNum.value || '') : '';
+            var fullVeh = (div + ' ' + num).trim();
             pVeh.textContent = fullVeh !== '' ? fullVeh : '-';
 
             pDept.textContent = getSelectedDepartment() || '-';
@@ -557,8 +642,8 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
                 pRate.textContent = '-';
             }
 
-            pName.textContent = fName.value.trim() !== '' ? fName.value.trim() : '-';
-            pPhone.textContent = fPhone.value.trim() !== '' ? fPhone.value.trim() : '-';
+            pName.textContent = (fName && fName.value.trim() !== '') ? fName.value.trim() : '-';
+            pPhone.textContent = (fPhone && fPhone.value.trim() !== '') ? fPhone.value.trim() : '-';
         }
 
         deptRadios.forEach(function(radio) {
@@ -574,7 +659,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
             }
         });
 
-        [fDiv, fChar, fNum, fName, fPhone].forEach(function(el) {
+        [fDiv, fNum, fName, fPhone].forEach(function(el) {
             if (el) {
                 el.addEventListener('input', updateReceiptPreview);
             }
