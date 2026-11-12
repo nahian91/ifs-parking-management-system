@@ -9,103 +9,98 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-/**
- * ওয়ার্ডপ্রেস এডমিন মেনু ও সাবমেনু নিবন্ধন।
- *
- * @return void
- */
+// inc/admin-menu.php এর শুরুতে ক্যাপাবিলিটি আপডেট:
 function ifs_parking_admin_menu() {
-	$capability = 'manage_options';
+	$operator_cap = 'read';         // অপারেটররা শুধু চেক-ইন, লাইভ স্ট্যাটাস ও রিলিজ ব্যবহার করতে পারবে
+	$admin_cap    = 'manage_options'; // সেটিংস, স্টাফ, ক্যাটাগরি ও রিপোর্ট শুধু অ্যাডমিনের জন্য
 
-	// মূল মেনু পেজ (ড্যাশবোর্ড)।
 	add_menu_page(
 		__( 'আইএফএস পার্কিং', 'ifs-parking' ),
 		__( 'আইএফএস পার্কিং', 'ifs-parking' ),
-		$capability,
-		'ifs-parking-system',
-		'ifs_parking_render_dashboard_page',
+		$operator_cap,
+		'ifs-parking-vehicles',
+		'ifs_parking_render_vehicles_page',
 		'dashicons-car',
 		6
 	);
 
-	// সাবমেনু পেজসমূহ।
 	add_submenu_page(
-		'ifs-parking-system',
-		__( 'ড্যাশবোর্ড', 'ifs-parking' ),
-		__( 'ড্যাশবোর্ড', 'ifs-parking' ),
-		$capability,
-		'ifs-parking-system',
-		'ifs_parking_render_dashboard_page'
-	);
-
-	add_submenu_page(
-		'ifs-parking-system',
-		__( 'লাইভ স্ট্যাটাস', 'ifs-parking' ),
-		__( 'লাইভ স্ট্যাটাস', 'ifs-parking' ),
-		$capability,
-		'ifs-parking-live-status',
-		'ifs_parking_render_live_status_page'
-	);
-
-	add_submenu_page(
-		'ifs-parking-system',
-		__( 'গাড়ি ব্যবস্থাপনা', 'ifs-parking' ),
-		__( 'গাড়িসমূহ', 'ifs-parking' ),
-		$capability,
+		'ifs-parking-vehicles',
+		__( 'চেক-ইন ও রিসেন্ট এন্ট্রি', 'ifs-parking' ),
+		__( 'চেক-ইন ও রিসেন্ট', 'ifs-parking' ),
+		$operator_cap,
 		'ifs-parking-vehicles',
 		'ifs_parking_render_vehicles_page'
 	);
 
 	add_submenu_page(
+		'ifs-parking-vehicles',
+		__( 'লাইভ স্ট্যাটাস', 'ifs-parking' ),
+		__( 'লাইভ স্ট্যাটাস', 'ifs-parking' ),
+		$operator_cap,
+		'ifs-parking-live-status',
+		'ifs_parking_render_live_status_page'
+	);
+
+	add_submenu_page(
+		'ifs-parking-vehicles',
+		__( 'ড্যাশবোর্ড', 'ifs-parking' ),
+		__( 'ড্যাশবোর্ড', 'ifs-parking' ),
+		$admin_cap,
 		'ifs-parking-system',
+		'ifs_parking_render_dashboard_page'
+	);
+
+	add_submenu_page(
+		'ifs-parking-vehicles',
 		__( 'পার্কিং স্লট', 'ifs-parking' ),
 		__( 'স্লট ম্যানেজমেন্ট', 'ifs-parking' ),
-		$capability,
+		$admin_cap,
 		'ifs-parking-slots',
 		'ifs_parking_render_slots_page'
 	);
 
 	add_submenu_page(
-		'ifs-parking-system',
+		'ifs-parking-vehicles',
 		__( 'ক্যাটাগরি ব্যবস্থাপনা', 'ifs-parking' ),
 		__( 'ক্যাটাগরি', 'ifs-parking' ),
-		$capability,
+		$admin_cap,
 		'ifs-parking-categories',
 		'ifs_parking_render_categories_page'
 	);
 
 	add_submenu_page(
-		'ifs-parking-system',
+		'ifs-parking-vehicles',
 		__( 'মেম্বারশিপ', 'ifs-parking' ),
 		__( 'মেম্বারশিপ', 'ifs-parking' ),
-		$capability,
+		$admin_cap,
 		'ifs-parking-memberships',
 		'ifs_parking_render_memberships_page'
 	);
 
 	add_submenu_page(
-		'ifs-parking-system',
+		'ifs-parking-vehicles',
 		__( 'রিপোর্ট ও অ্যানালিটিক্স', 'ifs-parking' ),
 		__( 'রিপোর্ট', 'ifs-parking' ),
-		$capability,
+		$admin_cap,
 		'ifs-parking-reports',
 		'ifs_parking_render_reports_page'
 	);
 
 	add_submenu_page(
-		'ifs-parking-system',
+		'ifs-parking-vehicles',
 		__( 'স্টাফ তালিকা', 'ifs-parking' ),
 		__( 'স্টাফ', 'ifs-parking' ),
-		$capability,
+		$admin_cap,
 		'ifs-parking-staff',
 		'ifs_parking_render_staff_page'
 	);
 
 	add_submenu_page(
-		'ifs-parking-system',
+		'ifs-parking-vehicles',
 		__( 'সিস্টেম সেটিংস', 'ifs-parking' ),
 		__( 'সেটিংস', 'ifs-parking' ),
-		$capability,
+		$admin_cap,
 		'ifs-parking-settings',
 		'ifs_parking_render_settings_page'
 	);
