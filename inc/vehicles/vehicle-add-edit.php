@@ -355,7 +355,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		.ifs-unified-app {
 			max-width: 860px;
 			margin: 0 auto;
-			font-family: 'Hind Siliguri', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+			font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 			box-sizing: border-box;
 			color: #0f172a;
 		}
@@ -462,7 +462,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			display: block;
 		}
 
-		/* কুইক গাড়ির বাটন গ্রিড (Tactile App Tiles) */
+		/* কুইক গাড়ির বাটন গ্রিড */
 		.ifs-quick-veh-grid {
 			display: grid;
 			grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
@@ -765,7 +765,6 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 				padding: 14px;
 				background: #ffffff;
 				color: #000000;
-				font-family: 'Hind Siliguri', sans-serif;
 				font-size: 13px;
 			}
 		}
@@ -848,7 +847,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 					<?php endforeach; ?>
 				</div>
 
-				<!-- বিআরটিএ রেজিস্ট্রেশন নম্বর -->
+				<!-- বিআরটিএ রেজিস্ট্রেশন নম্বর (সরাসরি নাম্বার কিবোর্ড ওপেন হবে) -->
 				<span class="ifs-sec-label"><?php esc_html_e( '২. বিআরটিএ (BRTA) গাড়ি নম্বর লিখুন *', 'ifs-parking' ); ?></span>
 				<div class="ifs-plate-row">
 					<select name="veh_div" id="f-div" class="ifs-m-input" required>
@@ -863,7 +862,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 						<?php endforeach; ?>
 					</select>
 
-					<input type="text" name="veh_num" id="f-num" class="ifs-m-input ifs-plate-num-input" required autocomplete="off" placeholder="<?php esc_attr_e( 'নম্বর লিখুন (যেমন: ১১-১২৩৪)', 'ifs-parking' ); ?>">
+					<input type="tel" inputmode="numeric" pattern="[0-9০-৯\-]*" name="veh_num" id="f-num" class="ifs-m-input ifs-plate-num-input" required autocomplete="off" placeholder="<?php esc_attr_e( '১১-১২৩৪', 'ifs-parking' ); ?>">
 				</div>
 
 				<!-- ডিপার্টমেন্ট ও ঐচ্ছিক ফোন নম্বর -->
@@ -879,7 +878,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 
 					<div>
 						<span class="ifs-sec-label"><?php esc_html_e( '৪. মোবাইল নম্বর (ঐচ্ছিক)', 'ifs-parking' ); ?></span>
-						<input type="tel" name="driver_phone" id="f-phone" class="ifs-m-input" placeholder="<?php esc_attr_e( '০১XXXXXXXXX (ঐচ্ছিক)', 'ifs-parking' ); ?>">
+						<input type="tel" inputmode="tel" name="driver_phone" id="f-phone" class="ifs-m-input" placeholder="<?php esc_attr_e( '০১৭XXXXXXXX', 'ifs-parking' ); ?>">
 					</div>
 				</div>
 
