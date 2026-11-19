@@ -119,10 +119,9 @@ function ifs_parking_save_vehicle_entry( $table_logs, $table_cats ) {
 
 	global $wpdb;
 
-	$div_val        = isset( $_POST['veh_div'] ) ? sanitize_text_field( wp_unslash( $_POST['veh_div'] ) ) : '';
-	$brta_letter    = isset( $_POST['veh_brta_letter'] ) ? sanitize_text_field( wp_unslash( $_POST['veh_brta_letter'] ) ) : '';
-	$num_val        = isset( $_POST['veh_num'] ) ? sanitize_text_field( wp_unslash( $_POST['veh_num'] ) ) : '';
-	$vehicle_number = trim( preg_replace( '/\s+/', ' ', $div_val . ' ' . $brta_letter . ' ' . $num_val ) );
+	$div_val     = isset( $_POST['veh_div'] ) ? sanitize_text_field( wp_unslash( $_POST['veh_div'] ) ) : '';
+	$brta_letter = isset( $_POST['veh_brta_letter'] ) ? sanitize_text_field( wp_unslash( $_POST['veh_brta_letter'] ) ) : '';
+	$num_val     = isset( $_POST['veh_num'] ) ? sanitize_text_field( wp_unslash( $_POST['veh_num'] ) ) : '';
 
 	$cat_id_selected = isset( $_POST['category_id'] ) ? absint( $_POST['category_id'] ) : 0;
 	$billing_type    = isset( $_POST['selected_rate_type'] ) ? sanitize_key( wp_unslash( $_POST['selected_rate_type'] ) ) : 'hourly';
@@ -133,6 +132,17 @@ function ifs_parking_save_vehicle_entry( $table_logs, $table_cats ) {
 	if ( ! $selected_cat ) {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$selected_cat = $wpdb->get_row( "SELECT * FROM `{$table_cats}` ORDER BY id ASC LIMIT 1" );
+	}
+
+	$selected_radio_veh = isset( $_POST['quick_veh_radio'] ) ? sanitize_text_field( wp_unslash( $_POST['quick_veh_radio'] ) ) : '';
+	$is_cycle           = ( 'Cycle' === $selected_radio_veh ) || ( $selected_cat && 'cycle' === strtolower( (string) $selected_cat->vehicle_type ) );
+
+	if ( $is_cycle ) {
+		$div_val        = '';
+		$brta_letter    = '';
+		$vehicle_number = trim( preg_replace( '/\s+/', ' ', 'সাইকেল ' . $num_val ) );
+	} else {
+		$vehicle_number = trim( preg_replace( '/\s+/', ' ', $div_val . ' ' . $brta_letter . ' ' . $num_val ) );
 	}
 
 	$fee_rate = 0.00;
@@ -315,57 +325,6 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 							) . '</span>
 						</div>
 					  </div>';
-			}
-		}
-	}
-
-	// ৩. একই পেজ থেকে এন্ট্রি ডিলিট হ্যান্ডলার।
-	if (
-		isset( $_POST['ifs_quick_delete_nonce'] ) &&
-		wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['ifs_quick_delete_nonce'] ) ), 'ifs_quick_delete' ) &&
-		current_user_can( 'manage_options' )
-	) {
-		$delete_id = isset( $_POST['delete_log_id'] ) ? absint( $_POST['delete_log_id'] ) : 0;
-		if ( $delete_id > 0 ) {
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-			$del_item = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM `{$table_logs}` WHERE id = %d", $delete_id ) );
-
-			if ( $del_item ) {
-				// যদি স্লট বরাদ্দ থাকে এবং গাড়িটি পার্কড অবস্থায় থাকে তবে স্লট খালি করা।
-				$table_slots = $wpdb->prefix . 'ifs_parking_slots';
-				if ( 'Parked' === $del_item->status && ! empty( $del_item->slot_number ) ) {
-					// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-					$wpdb->update(
-						$table_slots,
-						array( 'is_occupied' => 0 ),
-						array( 'slot_name' => $del_item->slot_number ),
-						array( '%d' ),
-						array( '%s' )
-					);
-				}
-
-				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-				$deleted = $wpdb->delete(
-					$table_logs,
-					array( 'id' => $delete_id ),
-					array( '%d' )
-				);
-
-				if ( false !== $deleted ) {
-					echo '<div class="ifs-toast-banner ifs-toast-error" role="status">
-							<span class="ifs-toast-icon">&#10003;</span>
-							<div>
-								<strong>' . esc_html__( 'এন্ট্রি মুছে ফেলা হয়েছে!', 'ifs-parking' ) . '</strong>
-								<span>' . esc_html(
-									sprintf(
-										/* translators: %s: গাড়ির নম্বর */
-										__( 'গাড়ি (%s)-এর রেকর্ড স্থায়ীভাবে ডিলিট করা হয়েছে।', 'ifs-parking' ),
-										$del_item->vehicle_number
-									)
-								) . '</span>
-							</div>
-						  </div>';
-				}
 			}
 		}
 	}
@@ -1006,27 +965,6 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		.ifs-btn-mini-checkout:active {
 			transform: scale(0.98);
 		}
-		.ifs-btn-mini-delete {
-			height: 40px;
-			padding: 0 13px;
-			border-radius: 10px;
-			border: 1.5px solid #fecaca;
-			background: #fef2f2;
-			color: #dc2626;
-			font-weight: 700;
-			font-size: 13px;
-			cursor: pointer;
-			display: inline-flex;
-			align-items: center;
-			justify-content: center;
-			gap: 4px;
-			transition: background 0.15s ease, border-color 0.15s ease;
-			-webkit-tap-highlight-color: transparent;
-		}
-		.ifs-btn-mini-delete:hover {
-			background: #fee2e2;
-			border-color: #fca5a5;
-		}
 
 		/* প্যাজিনেশন কন্ট্রোল */
 		.ifs-pagination-bar {
@@ -1077,169 +1015,6 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			cursor: not-allowed;
 		}
 
-		/* প্রফেশনাল থার্মাল প্রিন্ট স্লিপ ডিজাইন (সিঙ্গেল পেজ গ্যারান্টিড) */
-		#ifs-instant-print-sheet {
-			display: none;
-		}
-		@media print {
-			@page {
-				size: auto;
-				margin: 5mm;
-			}
-			html,
-			body {
-				height: auto !important;
-				min-height: 0 !important;
-				margin: 0 !important;
-				padding: 0 !important;
-				background: #ffffff !important;
-				overflow: visible !important;
-			}
-			#wpadminbar,
-			#adminmenumain,
-			#adminmenuwrap,
-			#adminmenuback,
-			#wpfooter,
-			.ifs-mobile-topbar,
-			.ifs-sidebar-col,
-			.ifs-top-quick-switch,
-			.ifs-unified-app,
-			.notice,
-			.ifs-toast-banner {
-				display: none !important;
-			}
-			#wpwrap,
-			#wpcontent,
-			#wpbody,
-			#wpbody-content,
-			.wrap,
-			.ifs-app-layout,
-			.ifs-content-col {
-				margin: 0 !important;
-				padding: 0 !important;
-				min-height: 0 !important;
-				height: auto !important;
-				display: block !important;
-				width: 100% !important;
-			}
-			#ifs-instant-print-sheet {
-				display: block !important;
-				position: static !important;
-				width: 100% !important;
-				max-width: 320px !important;
-				margin: 0 auto !important;
-				padding: 10px 8px !important;
-				background: #ffffff !important;
-				color: #0f172a !important;
-				font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-				font-size: 12.5px !important;
-				line-height: 1.45 !important;
-				page-break-inside: avoid !important;
-				break-inside: avoid !important;
-			}
-			.ifs-slip-brand-box {
-				text-align: center;
-				border-bottom: 1.5px dashed #0f172a;
-				padding-bottom: 10px;
-				margin-bottom: 10px;
-			}
-			.ifs-slip-brand-name {
-				font-size: 16px;
-				font-weight: 800;
-				display: block;
-				color: #0f172a;
-			}
-			.ifs-slip-helpline {
-				font-size: 11.5px;
-				color: #334155;
-				margin-top: 2px;
-				display: block;
-			}
-			.ifs-slip-doc-badge {
-				display: inline-block;
-				margin-top: 6px;
-				padding: 2px 10px;
-				border: 1px solid #0f172a;
-				border-radius: 4px;
-				font-size: 11px;
-				font-weight: 700;
-				letter-spacing: 0.3px;
-			}
-			.ifs-slip-plate-hero {
-				text-align: center;
-				background: #f8fafc;
-				border: 1.5px solid #0f172a;
-				border-radius: 6px;
-				padding: 8px 6px;
-				margin-bottom: 10px;
-			}
-			.ifs-slip-plate-label {
-				font-size: 10.5px;
-				font-weight: 600;
-				color: #475569;
-				display: block;
-				margin-bottom: 2px;
-			}
-			.ifs-slip-plate-value {
-				font-size: 16px;
-				font-weight: 800;
-				color: #0f172a;
-			}
-			.ifs-slip-meta-table {
-				width: 100%;
-				border-collapse: collapse;
-				margin-bottom: 10px;
-			}
-			.ifs-slip-meta-table td {
-				padding: 4px 2px;
-				border-bottom: 1px dotted #cbd5e1;
-				vertical-align: top;
-				font-size: 12px;
-			}
-			.ifs-slip-meta-table td.ifs-slip-k {
-				color: #475569;
-				font-weight: 600;
-				width: 42%;
-			}
-			.ifs-slip-meta-table td.ifs-slip-v {
-				color: #0f172a;
-				font-weight: 700;
-				text-align: right;
-			}
-			.ifs-slip-fee-box {
-				border-top: 1.5px dashed #0f172a;
-				border-bottom: 1.5px dashed #0f172a;
-				padding: 8px 2px;
-				margin-bottom: 10px;
-				display: flex;
-				justify-content: space-between;
-				align-items: center;
-			}
-			.ifs-slip-fee-title {
-				font-size: 12px;
-				font-weight: 700;
-				color: #0f172a;
-			}
-			.ifs-slip-fee-amount {
-				font-size: 15.5px;
-				font-weight: 800;
-				color: #0f172a;
-			}
-			.ifs-slip-note {
-				font-size: 11px;
-				color: #334155;
-				background: #f8fafc;
-				border-left: 3px solid #0f172a;
-				padding: 6px 8px;
-				margin-bottom: 10px;
-			}
-			.ifs-slip-footer {
-				text-align: center;
-				font-size: 11px;
-				color: #334155;
-			}
-		}
-
 		/* সুপার মোবাইল-ফ্রেন্ডলি ব্রেকপয়েন্ট */
 		@media screen and (max-width: 782px) {
 			.ifs-minimal-card {
@@ -1288,8 +1063,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 				width: 100%;
 			}
 			.ifs-btn-mini-print,
-			.ifs-btn-mini-checkout,
-			.ifs-btn-mini-delete {
+			.ifs-btn-mini-checkout {
 				flex: 1;
 				height: 44px;
 			}
@@ -1582,17 +1356,6 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 										</button>
 									</form>
 								<?php endif; ?>
-
-								<?php if ( current_user_can( 'manage_options' ) ) : ?>
-									<form method="post" action="" style="margin:0;">
-										<?php wp_nonce_field( 'ifs_quick_delete', 'ifs_quick_delete_nonce' ); ?>
-										<input type="hidden" name="delete_log_id" value="<?php echo esc_attr( $item->id ); ?>">
-										<button type="submit" class="ifs-btn-mini-delete"
-												onclick="return confirm('<?php echo esc_js( sprintf( __( 'আপনি কি নিশ্চিতভাবে গাড়ি (%s)-এর এন্ট্রি মুছে ফেলতে চান?', 'ifs-parking' ), $item->vehicle_number ) ); ?>');">
-											<?php esc_html_e( 'ডিলিট', 'ifs-parking' ); ?>
-										</button>
-									</form>
-								<?php endif; ?>
 							</div>
 						</div>
 					<?php endforeach; ?>
@@ -1609,73 +1372,32 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		</div>
 	</div>
 
-	<!-- প্রফেশনাল পার্কিং রসিদ / টোকেন টেমপ্লেট -->
-	<div id="ifs-instant-print-sheet">
-		<div class="ifs-slip-brand-box">
-			<span class="ifs-slip-brand-name"><?php echo esc_html( $site_title ); ?></span>
-			<span class="ifs-slip-helpline"><?php esc_html_e( 'হেল্পলাইন:', 'ifs-parking' ); ?> <?php echo esc_html( ifs_parking_veh_bn_num( $system_phone ) ); ?></span>
-			<span class="ifs-slip-doc-badge"><?php esc_html_e( 'পার্কিং এন্ট্রি টোকেন ও বিলিং স্লিপ', 'ifs-parking' ); ?></span>
-		</div>
-
-		<div class="ifs-slip-plate-hero">
-			<span class="ifs-slip-plate-label"><?php esc_html_e( 'গাড়ির রেজিস্ট্রেশন নম্বর', 'ifs-parking' ); ?></span>
-			<span class="ifs-slip-plate-value" id="sp-veh">-</span>
-		</div>
-
-		<table class="ifs-slip-meta-table">
-			<tbody>
-				<tr>
-					<td class="ifs-slip-k"><?php esc_html_e( 'টোকেন / স্লিপ নং', 'ifs-parking' ); ?></td>
-					<td class="ifs-slip-v" id="sp-inv">-</td>
-				</tr>
-				<tr>
-					<td class="ifs-slip-k"><?php esc_html_e( 'গাড়ির ধরণ / ক্যাটাগরি', 'ifs-parking' ); ?></td>
-					<td class="ifs-slip-v" id="sp-cat">-</td>
-				</tr>
-				<tr>
-					<td class="ifs-slip-k"><?php esc_html_e( 'প্রবেশের সময়', 'ifs-parking' ); ?></td>
-					<td class="ifs-slip-v" id="sp-time">-</td>
-				</tr>
-				<tr>
-					<td class="ifs-slip-k"><?php esc_html_e( 'বের হওয়ার সময়', 'ifs-parking' ); ?></td>
-					<td class="ifs-slip-v" id="sp-exit">-</td>
-				</tr>
-				<tr>
-					<td class="ifs-slip-k"><?php esc_html_e( 'বর্তমান অবস্থা', 'ifs-parking' ); ?></td>
-					<td class="ifs-slip-v" id="sp-status">-</td>
-				</tr>
-				<tr id="sp-phone-row" style="display:none;">
-					<td class="ifs-slip-k"><?php esc_html_e( 'মোবাইল নম্বর', 'ifs-parking' ); ?></td>
-					<td class="ifs-slip-v" id="sp-phone">-</td>
-				</tr>
-			</tbody>
-		</table>
-
-		<div class="ifs-slip-fee-box">
-			<span class="ifs-slip-fee-title"><?php esc_html_e( 'নির্ধারিত / চলতি ফি', 'ifs-parking' ); ?></span>
-			<span class="ifs-slip-fee-amount" id="sp-fee">-</span>
-		</div>
-
-		<div class="ifs-slip-note">
-			<?php esc_html_e( 'বিঃদ্রঃ প্রতি ২ ঘণ্টা স্ল্যাব অনুযায়ী পার্কিং চার্জ গণনা করা হয়। গাড়ি বের করার সময় স্লিপটি প্রদর্শন করুন।', 'ifs-parking' ); ?>
-		</div>
-
-		<div class="ifs-slip-footer">
-			<strong><?php esc_html_e( 'নিরাপদ যাত্রা কামনা করছি!', 'ifs-parking' ); ?></strong><br>
-			<span><?php echo esc_html( $site_title ); ?></span>
-		</div>
-	</div>
-
 	<script>
 	document.addEventListener('DOMContentLoaded', function() {
 		var categoriesData = <?php echo wp_json_encode( $all_categories ); ?>;
 		var currencySymbol = <?php echo wp_json_encode( $currency_symbol ); ?>;
+		var brandTitle     = <?php echo wp_json_encode( $site_title ); ?>;
+		var phoneHelp      = <?php echo wp_json_encode( ifs_parking_veh_bn_num( $system_phone ) ); ?>;
 		var i18nText       = {
 			prev: <?php echo wp_json_encode( __( 'আগে', 'ifs-parking' ) ); ?>,
 			next: <?php echo wp_json_encode( __( 'পরে', 'ifs-parking' ) ); ?>,
 			pageOf: <?php echo wp_json_encode( __( 'পৃষ্ঠা %1$s / %2$s (মোট %3$sটি)', 'ifs-parking' ) ); ?>,
 			activeStatus: <?php echo wp_json_encode( __( 'পার্কিংয়ে সক্রিয়', 'ifs-parking' ) ); ?>,
-			stillParked: <?php echo wp_json_encode( __( 'এখনও পার্কিংয়ে', 'ifs-parking' ) ); ?>
+			stillParked: <?php echo wp_json_encode( __( 'এখনও পার্কিংয়ে', 'ifs-parking' ) ); ?>,
+			helpLbl: <?php echo wp_json_encode( __( 'হেল্পলাইন:', 'ifs-parking' ) ); ?>,
+			slipBadge: <?php echo wp_json_encode( __( 'পার্কিং এন্ট্রি টোকেন ও বিলিং স্লিপ', 'ifs-parking' ) ); ?>,
+			vehLbl: <?php echo wp_json_encode( __( 'গাড়ির রেজিস্ট্রেশন নম্বর', 'ifs-parking' ) ); ?>,
+			invLbl: <?php echo wp_json_encode( __( 'টোকেন / স্লিপ নং', 'ifs-parking' ) ); ?>,
+			catLbl: <?php echo wp_json_encode( __( 'গাড়ির ধরণ / ক্যাটাগরি', 'ifs-parking' ) ); ?>,
+			timeLbl: <?php echo wp_json_encode( __( 'প্রবেশের সময়', 'ifs-parking' ) ); ?>,
+			exitLbl: <?php echo wp_json_encode( __( 'বের হওয়ার সময়', 'ifs-parking' ) ); ?>,
+			statusLbl: <?php echo wp_json_encode( __( 'বর্তমান অবস্থা', 'ifs-parking' ) ); ?>,
+			phoneLbl: <?php echo wp_json_encode( __( 'মোবাইল নম্বর', 'ifs-parking' ) ); ?>,
+			feeLbl: <?php echo wp_json_encode( __( 'নির্ধারিত / চলতি ফি', 'ifs-parking' ) ); ?>,
+			noteTxt: <?php echo wp_json_encode( __( 'বিঃদ্রঃ প্রতি ২ ঘণ্টা স্ল্যাব অনুযায়ী পার্কিং চার্জ গণনা করা হয়। গাড়ি বের করার সময় স্লিপটি প্রদর্শন করুন।', 'ifs-parking' ) ); ?>,
+			wishTxt: <?php echo wp_json_encode( __( 'নিরাপদ যাত্রা কামনা করছি!', 'ifs-parking' ) ); ?>,
+			cyclePlaceholder: <?php echo wp_json_encode( __( 'সাইকেল নম্বর / টোকেন লিখুন', 'ifs-parking' ) ); ?>,
+			platePlaceholder: <?php echo wp_json_encode( __( '১১-১২৩৪', 'ifs-parking' ) ); ?>
 		};
 
 		// বিআরটিএ অটো সিরিজ বর্ণ ম্যাপিং
@@ -1706,24 +1428,65 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			return String(str).replace(/[0-9]/g, function(w) { return bnMap[+w]; });
 		}
 
-		function updateLivePlateBadge() {
-			if (!livePlateBadge) return;
-			var divTxt = fDiv ? fDiv.value : '';
-			var letTxt = fBrtaLetter ? fBrtaLetter.value : '';
-			var numTxt = fNum ? toBnDigits(fNum.value.trim()) : '';
-			var full   = [divTxt, letTxt, numTxt].filter(Boolean).join(' ');
-			livePlateBadge.textContent = full || '-';
-		}
-
 		function getSelectedVeh() {
 			var el = document.querySelector('.ifs-quick-veh-selector:checked');
 			return el ? el.value : 'Bike';
+		}
+
+		function updateLivePlateBadge() {
+			if (!livePlateBadge) return;
+			var vehType = getSelectedVeh();
+			var numTxt  = fNum ? toBnDigits(fNum.value.trim()) : '';
+
+			if (vehType === 'Cycle') {
+				livePlateBadge.textContent = numTxt ? ('সাইকেল ' + numTxt) : 'সাইকেল';
+				return;
+			}
+
+			var divTxt = (fDiv && fDiv.style.display !== 'none') ? fDiv.value : '';
+			var letTxt = (fBrtaLetter && fBrtaLetter.style.display !== 'none') ? fBrtaLetter.value : '';
+			var full   = [divTxt, letTxt, numTxt].filter(Boolean).join(' ');
+			livePlateBadge.textContent = full || '-';
 		}
 
 		function syncRateAndCategory() {
 			var vehType  = getSelectedVeh();
 			var deptName = deptDropdown ? deptDropdown.value : 'General';
 			var rateType = pkgTypeSelect ? pkgTypeSelect.value : 'hourly';
+			var plateRow = document.querySelector('.ifs-plate-row');
+
+			if (vehType === 'Cycle') {
+				if (fDiv) {
+					fDiv.style.display = 'none';
+					fDiv.value = '';
+				}
+				if (fBrtaLetter) {
+					fBrtaLetter.style.display = 'none';
+					fBrtaLetter.value = '';
+				}
+				if (plateRow) {
+					plateRow.style.gridTemplateColumns = '1fr';
+				}
+				if (fNum) {
+					fNum.setAttribute('placeholder', i18nText.cyclePlaceholder);
+				}
+			} else {
+				if (fDiv) {
+					fDiv.style.display = '';
+					if (!fDiv.value) {
+						fDiv.value = 'সিলেট মেট্রো';
+					}
+				}
+				if (fBrtaLetter) {
+					fBrtaLetter.style.display = '';
+				}
+				if (plateRow) {
+					plateRow.style.gridTemplateColumns = '';
+				}
+				if (fNum) {
+					fNum.setAttribute('placeholder', i18nText.platePlaceholder);
+				}
+			}
 
 			if (condIdBox && condIdInput) {
 				if (deptName === 'Gym' || deptName === 'Staff' || deptName === 'Employee') {
@@ -1755,7 +1518,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		document.querySelectorAll('.ifs-quick-veh-selector').forEach(function(radio) {
 			radio.addEventListener('change', function() {
 				var v = getSelectedVeh();
-				if (fBrtaLetter && Object.prototype.hasOwnProperty.call(brtaAutoLetterMap, v)) {
+				if (v !== 'Cycle' && fBrtaLetter && Object.prototype.hasOwnProperty.call(brtaAutoLetterMap, v)) {
 					fBrtaLetter.value = brtaAutoLetterMap[v];
 				}
 				syncRateAndCategory();
@@ -1769,34 +1532,90 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		if (fNum) fNum.addEventListener('input', updateLivePlateBadge);
 
 		var initVeh = getSelectedVeh();
-		if (fBrtaLetter && Object.prototype.hasOwnProperty.call(brtaAutoLetterMap, initVeh)) {
+		if (initVeh !== 'Cycle' && fBrtaLetter && Object.prototype.hasOwnProperty.call(brtaAutoLetterMap, initVeh)) {
 			fBrtaLetter.value = brtaAutoLetterMap[initVeh];
 		}
 		syncRateAndCategory();
 
-		// প্রফেশনাল স্লিপ প্রিন্ট ফাংশন
+		// প্রফেশনাল স্লিপ প্রিন্ট ফাংশন (সাদা প্রিভিউ রোধে আইসোলেটেড প্রিন্ট ফ্রেম)
 		function printSlipData(data) {
-			document.getElementById('sp-inv').textContent    = data.inv || '-';
-			document.getElementById('sp-veh').textContent    = data.veh || '-';
-			document.getElementById('sp-cat').textContent    = data.cat || '-';
-			document.getElementById('sp-time').textContent   = data.time || '-';
-			document.getElementById('sp-exit').textContent   = data.exit || i18nText.stillParked;
-			document.getElementById('sp-status').textContent = data.status || i18nText.activeStatus;
-			document.getElementById('sp-fee').textContent    = data.fee || '-';
+			var invText    = data.inv || '-';
+			var vehText    = data.veh || '-';
+			var catText    = data.cat || '-';
+			var timeText   = data.time || '-';
+			var exitText   = data.exit || i18nText.stillParked;
+			var statusText = data.status || i18nText.activeStatus;
+			var feeText    = data.fee || '-';
+			var phoneText  = data.phone || '';
 
-			var phoneRow = document.getElementById('sp-phone-row');
-			var phoneVal = document.getElementById('sp-phone');
-			if (data.phone) {
-				phoneVal.textContent = data.phone;
-				phoneRow.style.display = 'table-row';
-			} else {
-				phoneRow.style.display = 'none';
+			var oldFrame = document.getElementById('ifs-print-sandbox-frame');
+			if (oldFrame && oldFrame.parentNode) {
+				oldFrame.parentNode.removeChild(oldFrame);
 			}
-			window.print();
+
+			var iframe = document.createElement('iframe');
+			iframe.id = 'ifs-print-sandbox-frame';
+			iframe.style.position = 'fixed';
+			iframe.style.right = '0';
+			iframe.style.bottom = '0';
+			iframe.style.width = '1px';
+			iframe.style.height = '1px';
+			iframe.style.opacity = '0';
+			iframe.style.border = '0';
+			document.body.appendChild(iframe);
+
+			var frameWin = iframe.contentWindow;
+			var doc      = frameWin ? frameWin.document : null;
+			if (!doc) {
+				window.print();
+				return;
+			}
+
+			var phoneRowHtml = phoneText
+				? '<tr><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#475569;font-weight:600;">' + i18nText.phoneLbl + '</td><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#0f172a;font-weight:700;text-align:right;">' + phoneText + '</td></tr>'
+				: '';
+
+			doc.open();
+			doc.write(
+				'<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + brandTitle + '</title>' +
+				'<style>@page{size:auto;margin:6mm;}body{margin:0 auto;padding:10px 8px;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#0f172a;background:#ffffff;max-width:320px;font-size:12.5px;line-height:1.45;}</style>' +
+				'</head><body>' +
+				'<div style="text-align:center;border-bottom:1.5px dashed #0f172a;padding-bottom:10px;margin-bottom:10px;">' +
+				'<div style="font-size:16px;font-weight:800;">' + brandTitle + '</div>' +
+				'<div style="font-size:11.5px;color:#334155;margin-top:2px;">' + i18nText.helpLbl + ' ' + phoneHelp + '</div>' +
+				'<div style="display:inline-block;margin-top:6px;padding:2px 10px;border:1px solid #0f172a;border-radius:4px;font-size:11px;font-weight:700;">' + i18nText.slipBadge + '</div>' +
+				'</div>' +
+				'<div style="text-align:center;background:#f8fafc;border:1.5px solid #0f172a;border-radius:6px;padding:8px 6px;margin-bottom:10px;">' +
+				'<div style="font-size:10.5px;font-weight:600;color:#475569;margin-bottom:2px;">' + i18nText.vehLbl + '</div>' +
+				'<div style="font-size:16px;font-weight:800;">' + vehText + '</div>' +
+				'</div>' +
+				'<table style="width:100%;border-collapse:collapse;margin-bottom:10px;"><tbody>' +
+				'<tr><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#475569;font-weight:600;width:42%;">' + i18nText.invLbl + '</td><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#0f172a;font-weight:700;text-align:right;">' + invText + '</td></tr>' +
+				'<tr><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#475569;font-weight:600;">' + i18nText.catLbl + '</td><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#0f172a;font-weight:700;text-align:right;">' + catText + '</td></tr>' +
+				'<tr><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#475569;font-weight:600;">' + i18nText.timeLbl + '</td><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#0f172a;font-weight:700;text-align:right;">' + timeText + '</td></tr>' +
+				'<tr><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#475569;font-weight:600;">' + i18nText.exitLbl + '</td><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#0f172a;font-weight:700;text-align:right;">' + exitText + '</td></tr>' +
+				'<tr><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#475569;font-weight:600;">' + i18nText.statusLbl + '</td><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#0f172a;font-weight:700;text-align:right;">' + statusText + '</td></tr>' +
+				phoneRowHtml +
+				'</tbody></table>' +
+				'<div style="border-top:1.5px dashed #0f172a;border-bottom:1.5px dashed #0f172a;padding:8px 2px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">' +
+				'<span style="font-size:12px;font-weight:700;">' + i18nText.feeLbl + '</span>' +
+				'<strong style="font-size:15.5px;font-weight:800;">' + feeText + '</strong>' +
+				'</div>' +
+				'<div style="font-size:11px;color:#334155;background:#f8fafc;border-left:3px solid #0f172a;padding:6px 8px;margin-bottom:10px;">' + i18nText.noteTxt + '</div>' +
+				'<div style="text-align:center;font-size:11px;color:#334155;"><strong>' + i18nText.wishTxt + '</strong><br><span>' + brandTitle + '</span></div>' +
+				'</body></html>'
+			);
+			doc.close();
+
+			setTimeout(function() {
+				frameWin.focus();
+				frameWin.print();
+			}, 150);
 		}
 
 		document.querySelectorAll('.ifs-trigger-slip-print').forEach(function(btn) {
-			btn.addEventListener('click', function() {
+			btn.addEventListener('click', function(e) {
+				e.preventDefault();
 				printSlipData({
 					inv: this.getAttribute('data-inv'),
 					veh: this.getAttribute('data-veh'),
@@ -1812,7 +1631,8 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 
 		var printLatestBtn = document.getElementById('ifs-print-latest-btn');
 		if (printLatestBtn) {
-			printLatestBtn.addEventListener('click', function() {
+			printLatestBtn.addEventListener('click', function(e) {
+				e.preventDefault();
 				printSlipData({
 					inv: this.getAttribute('data-inv'),
 					veh: this.getAttribute('data-veh'),
