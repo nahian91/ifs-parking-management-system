@@ -119,7 +119,7 @@ function ifs_parking_save_vehicle_entry( $table_logs, $table_cats ) {
 
 	global $wpdb;
 
-	$div_val        = isset( $_POST['veh_div'] ) ? sanitize_text_field( wp_unslash( $_POST['veh_div'] ) ) : 'সিলেট মেট্রো';
+	$div_val        = isset( $_POST['veh_div'] ) ? sanitize_text_field( wp_unslash( $_POST['veh_div'] ) ) : '';
 	$brta_letter    = isset( $_POST['veh_brta_letter'] ) ? sanitize_text_field( wp_unslash( $_POST['veh_brta_letter'] ) ) : '';
 	$num_val        = isset( $_POST['veh_num'] ) ? sanitize_text_field( wp_unslash( $_POST['veh_num'] ) ) : '';
 	$vehicle_number = trim( preg_replace( '/\s+/', ' ', $div_val . ' ' . $brta_letter . ' ' . $num_val ) );
@@ -241,16 +241,17 @@ function ifs_parking_save_vehicle_entry( $table_logs, $table_cats ) {
 function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_title, $system_phone, $currency_symbol ) {
 	global $wpdb;
 
-	$table_logs = $wpdb->prefix . 'ifs_parking_logs';
-	$new_log_id = 0;
-	$bd_tz      = ifs_parking_bd_timezone();
+	$table_logs         = $wpdb->prefix . 'ifs_parking_logs';
+	$new_log_id         = 0;
+	$just_released_item = null;
+	$bd_tz              = ifs_parking_bd_timezone();
 
 	// ১. নতুন চেক-ইন সেভ (একই পেজে)।
 	if ( isset( $_POST['ifs_vehicle_nonce'] ) ) {
 		$new_log_id = ifs_parking_save_vehicle_entry( $table_logs, $table_cats );
 	}
 
-	// ২. একই পেজ থেকে রিলিজ / চেক-আউট হ্যান্ডলার (প্রতি ২ ঘণ্টা স্ল্যাব অটো-হিসাবসহ)।
+	// ২. একই পেজ থেকে রিলিজ / চেক-আউট হ্যান্ডলার (প্রতি ২ ঘণ্টা স্ল্যাব অটো-হিসাবসহ + অটো প্রিন্ট প্রিভিউ)।
 	if (
 		isset( $_POST['ifs_quick_checkout_nonce'] ) &&
 		wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['ifs_quick_checkout_nonce'] ) ), 'ifs_quick_checkout' ) &&
@@ -291,6 +292,11 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 					array( '%s', '%f', '%s' ),
 					array( '%d' )
 				);
+
+				$item->exit_time    = $exit_mysql;
+				$item->fee          = $final_fee;
+				$item->status       = 'Exited';
+				$just_released_item = $item;
 
 				$exit_bn_disp = ifs_parking_format_local_datetime( $exit_mysql, 'h:i A, j M' );
 
@@ -407,7 +413,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		'ড' => __( 'ড (ট্রাক মাঝারী)', 'ifs-parking' ),
 		'ন' => __( 'ন (পিকআপ ছোট)', 'ifs-parking' ),
 		'ম' => __( 'ম (ডেলিভারি ভ্যান)', 'ifs-parking' ),
-		''  => __( 'বর্ণ নেই', 'ifs-parking' ),
+		''  => __( 'প্রযোজ্য নয়', 'ifs-parking' ),
 	);
 
 	$metro_options = array(
@@ -421,6 +427,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		'ময়মনসিংহ মেট্রো' => __( 'ময়মনসিংহ মেট্রো', 'ifs-parking' ),
 		'সিলেট'            => __( 'সিলেট (জেলা)', 'ifs-parking' ),
 		'অন্যান্য'         => __( 'অন্যান্য জেলা', 'ifs-parking' ),
+		''  => __( 'প্রযোজ্য নয়', 'ifs-parking' ),
 	);
 
 	$allowed_svg = array(
@@ -978,33 +985,65 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			cursor: not-allowed;
 		}
 
-		/* প্রফেশনাল থার্মাল প্রিন্ট স্লিপ ডিজাইন */
+		/* প্রফেশনাল থার্মাল প্রিন্ট স্লিপ ডিজাইন (সিঙ্গেল পেজ গ্যারান্টিড) */
 		#ifs-instant-print-sheet {
 			display: none;
 		}
 		@media print {
 			@page {
-				margin: 6mm;
+				size: auto;
+				margin: 5mm;
 			}
-			body * { visibility: hidden !important; }
-			#ifs-instant-print-sheet,
-			#ifs-instant-print-sheet * {
-				visibility: visible !important;
+			html,
+			body {
+				height: auto !important;
+				min-height: 0 !important;
+				margin: 0 !important;
+				padding: 0 !important;
+				background: #ffffff !important;
+				overflow: visible !important;
+			}
+			#wpadminbar,
+			#adminmenumain,
+			#adminmenuwrap,
+			#adminmenuback,
+			#wpfooter,
+			.ifs-mobile-topbar,
+			.ifs-sidebar-col,
+			.ifs-top-quick-switch,
+			.ifs-unified-app,
+			.notice,
+			.ifs-toast-banner {
+				display: none !important;
+			}
+			#wpwrap,
+			#wpcontent,
+			#wpbody,
+			#wpbody-content,
+			.wrap,
+			.ifs-app-layout,
+			.ifs-content-col {
+				margin: 0 !important;
+				padding: 0 !important;
+				min-height: 0 !important;
+				height: auto !important;
+				display: block !important;
+				width: 100% !important;
 			}
 			#ifs-instant-print-sheet {
 				display: block !important;
-				position: fixed;
-				left: 0;
-				top: 0;
-				width: 100%;
-				max-width: 320px;
-				margin: 0 auto;
-				padding: 12px 10px;
-				background: #ffffff;
-				color: #0f172a;
-				font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-				font-size: 12.5px;
-				line-height: 1.45;
+				position: static !important;
+				width: 100% !important;
+				max-width: 320px !important;
+				margin: 0 auto !important;
+				padding: 10px 8px !important;
+				background: #ffffff !important;
+				color: #0f172a !important;
+				font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+				font-size: 12.5px !important;
+				line-height: 1.45 !important;
+				page-break-inside: avoid !important;
+				break-inside: avoid !important;
 			}
 			.ifs-slip-brand-box {
 				text-align: center;
@@ -1181,7 +1220,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 					<?php esc_html_e( 'নতুন গাড়ি চেক-ইন', 'ifs-parking' ); ?>
 				</h2>
 				<div class="ifs-live-plate-badge" id="ifs-live-plate-preview">
-					<?php esc_html_e( 'সিলেট মেট্রো হ', 'ifs-parking' ); ?>
+					<?php esc_html_e( 'হ', 'ifs-parking' ); ?>
 				</div>
 			</div>
 
@@ -1211,7 +1250,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 				<!-- বিআরটিএ রেজিস্ট্রেশন নম্বর (সরাসরি নাম্বার কিবোর্ড ওপেন হবে) -->
 				<span class="ifs-sec-label"><?php esc_html_e( '২. বিআরটিএ (BRTA) গাড়ি নম্বর লিখুন *', 'ifs-parking' ); ?></span>
 				<div class="ifs-plate-row">
-					<select name="veh_div" id="f-div" class="ifs-m-input" required>
+					<select name="veh_div" id="f-div" class="ifs-m-input">
 						<?php foreach ( $metro_options as $m_val => $m_label ) : ?>
 							<option value="<?php echo esc_attr( $m_val ); ?>"><?php echo esc_html( $m_label ); ?></option>
 						<?php endforeach; ?>
@@ -1341,7 +1380,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 						<?php
 						echo esc_html(
 							sprintf(
-								/* translators: %s: রিলিজ হওয়া গাড়ির সংখ্যা */
+								/* translators: %s: রিলিজ হওয়া গাড়ির সংখ্যা */
 								__( 'রিলিজ সম্পন্ন (%s)', 'ifs-parking' ),
 								ifs_parking_veh_bn_num( $released_count )
 							)
@@ -1701,6 +1740,27 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 					exit: <?php echo wp_json_encode( $j_exit ); ?>,
 					fee: <?php echo wp_json_encode( $currency_symbol . ifs_parking_veh_bn_num( number_format( (float) $just_checked_in->fee, 2 ) ) ); ?>,
 					status: <?php echo wp_json_encode( __( 'পার্কিংয়ে সক্রিয়', 'ifs-parking' ) ); ?>
+				});
+			}, 300);
+		<?php endif; ?>
+
+		// সদ্য রিলিজ (Check-Out) হয়ে থাকলে অটোমেটিক এক্সিট স্লিপ প্রিন্ট ডায়ালগ ওপেন করা
+		<?php if ( $just_released_item ) : ?>
+			<?php
+			$r_time = ifs_parking_format_local_datetime( $just_released_item->entry_time, 'j M, Y - h:i A' );
+			$r_exit = ifs_parking_format_local_datetime( $just_released_item->exit_time, 'j M, Y - h:i A' );
+			$r_inv  = ! empty( $just_released_item->reference_id ) ? strtok( $just_released_item->reference_id, ' [' ) : 'NPMS-' . $just_released_item->id;
+			?>
+			setTimeout(function() {
+				printSlipData({
+					inv: <?php echo wp_json_encode( $r_inv ); ?>,
+					veh: <?php echo wp_json_encode( $just_released_item->vehicle_number ); ?>,
+					cat: <?php echo wp_json_encode( ucwords( str_replace( '-', ' - ', (string) $just_released_item->parking_type ) ) ); ?>,
+					phone: <?php echo wp_json_encode( ifs_parking_veh_bn_num( $just_released_item->driver_phone ) ); ?>,
+					time: <?php echo wp_json_encode( $r_time ); ?>,
+					exit: <?php echo wp_json_encode( $r_exit ); ?>,
+					fee: <?php echo wp_json_encode( $currency_symbol . ifs_parking_veh_bn_num( number_format( (float) $just_released_item->fee, 2 ) ) ); ?>,
+					status: <?php echo wp_json_encode( __( 'রিলিজ সম্পন্ন', 'ifs-parking' ) ); ?>
 				});
 			}, 300);
 		<?php endif; ?>

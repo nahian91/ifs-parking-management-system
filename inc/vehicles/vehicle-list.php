@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * ইংরেজি সংখ্যাকে বাংলা সংখ্যায় রূপান্তর করার হেল্পার ফাংশন।
+ * ইংরেজি সংখ্যাকে বাংলা সংখ্যায় রূপান্তর করার হেল্পার ফাংশন।
  *
  * @param string|int|float $number ইনপুট সংখ্যা বা স্ট্রিং।
  * @return string
@@ -37,9 +37,60 @@ function ifs_parking_list_bn_num( $number ) {
 function ifs_parking_render_vehicle_list( $table_logs, $currency_symbol, $auto_print_id ) {
 	global $wpdb;
 
-	$logs = array();
+	$bd_tz = new DateTimeZone( 'Asia/Dhaka' );
+
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-	if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_logs ) ) === $table_logs ) {
+	$has_logs_table = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_logs ) ) === $table_logs );
+
+	// ডিলিট অ্যাকশন হ্যান্ডলার (action=delete_vehicle&id=...).
+	// phpcs:disable WordPress.Security.NonceVerification.Recommended
+	$req_action = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : '';
+	$req_id     = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
+	// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+	if ( $has_logs_table && 'delete_vehicle' === $req_action && $req_id > 0 && current_user_can( 'manage_options' ) ) {
+		check_admin_referer( 'ifs_delete_vehicle_' . $req_id );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$del_item = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM `{$table_logs}` WHERE id = %d", $req_id ) );
+
+		if ( $del_item ) {
+			$table_slots = $wpdb->prefix . 'ifs_parking_slots';
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			if ( 'Parked' === $del_item->status && ! empty( $del_item->slot_number ) && $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_slots ) ) === $table_slots ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+				$wpdb->update(
+					$table_slots,
+					array( 'is_occupied' => 0 ),
+					array( 'slot_name' => $del_item->slot_number ),
+					array( '%d' ),
+					array( '%s' )
+				);
+			}
+
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$deleted = $wpdb->delete(
+				$table_logs,
+				array( 'id' => $req_id ),
+				array( '%d' )
+			);
+
+			if ( false !== $deleted ) {
+				echo '<div class="notice notice-success is-dismissible" style="margin: 0 0 14px 0; border-radius: 8px;">
+						<p><strong>' . esc_html(
+							sprintf(
+								/* translators: %s: গাড়ির নম্বর */
+								__( 'গাড়ি (%s)-এর পার্কিং রেকর্ড সফলভাবে মুছে ফেলা হয়েছে!', 'ifs-parking' ),
+								$del_item->vehicle_number
+							)
+						) . '</strong></p>
+					  </div>';
+			}
+		}
+	}
+
+	$logs = array();
+	if ( $has_logs_table ) {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$logs = $wpdb->get_results( "SELECT * FROM `{$table_logs}` ORDER BY id DESC LIMIT 100" );
 	}
@@ -58,10 +109,10 @@ function ifs_parking_render_vehicle_list( $table_logs, $currency_symbol, $auto_p
 	);
 	?>
 	<style>
-		/* ভেহিক্যাল লিস্ট রেসপনসিভনেস ও প্রমিত বাংলা টাইপোগ্রাফি */
+		/* ভেহিক্যাল লিস্ট রেসপনসিভনেস ও সিস্টেম টাইপোগ্রাফি */
 		.ifs-table-container-card {
 			box-sizing: border-box;
-			font-family: 'Hind Siliguri', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+			font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 		}
 		.ifs-veh-list-header {
 			padding: 15px 20px;
@@ -88,22 +139,59 @@ function ifs_parking_render_vehicle_list( $table_logs, $currency_symbol, $auto_p
 			min-width: 820px;
 		}
 
-		/* প্রিন্ট স্লিপের জন্য বিশেষ স্টাইল */
+		/* প্রিন্ট স্লিপের জন্য সিঙ্গেল-পেজ অপ্টিমাইজড স্টাইল */
+		#printable-receipt {
+			display: none;
+		}
 		@media print {
-			body * {
-				visibility: hidden;
+			@page {
+				size: auto;
+				margin: 5mm;
 			}
-			#printable-receipt,
-			#printable-receipt * {
-				visibility: visible;
+			html,
+			body {
+				height: auto !important;
+				min-height: 0 !important;
+				margin: 0 !important;
+				padding: 0 !important;
+				background: #ffffff !important;
+			}
+			#wpadminbar,
+			#adminmenumain,
+			#adminmenuwrap,
+			#adminmenuback,
+			#wpfooter,
+			.ifs-mobile-topbar,
+			.ifs-sidebar-col,
+			.ifs-top-quick-switch,
+			.ifs-table-container-card,
+			.notice {
+				display: none !important;
+			}
+			#wpwrap,
+			#wpcontent,
+			#wpbody,
+			#wpbody-content,
+			.wrap,
+			.ifs-app-layout,
+			.ifs-content-col {
+				margin: 0 !important;
+				padding: 0 !important;
+				min-height: 0 !important;
+				height: auto !important;
+				display: block !important;
+				width: 100% !important;
 			}
 			#printable-receipt {
-				position: fixed;
-				left: 0;
-				top: 0;
-				width: 100%;
-				padding: 16px;
-				background: #ffffff;
+				display: block !important;
+				position: static !important;
+				width: 100% !important;
+				max-width: 340px !important;
+				margin: 0 auto !important;
+				padding: 12px !important;
+				background: #ffffff !important;
+				page-break-inside: avoid !important;
+				break-inside: avoid !important;
 			}
 		}
 
@@ -165,8 +253,8 @@ function ifs_parking_render_vehicle_list( $table_logs, $currency_symbol, $auto_p
 					<?php if ( ! empty( $logs ) ) : ?>
 						<?php
 						foreach ( $logs as $log ) :
-							$checkout_url = wp_nonce_url( admin_url( 'admin.php?page=ifs-parking-vehicles&action=checkout&id=' . $log->id ), 'ifs_checkout_vehicle_' . $log->id );
-							$delete_url   = wp_nonce_url( admin_url( 'admin.php?page=ifs-parking-vehicles&action=delete_vehicle&id=' . $log->id ), 'ifs_delete_vehicle_' . $log->id );
+							$checkout_url = wp_nonce_url( admin_url( 'admin.php?page=ifs-parking-vehicles&tab=all_vehicles&action=checkout&id=' . $log->id ), 'ifs_checkout_vehicle_' . $log->id );
+							$delete_url   = wp_nonce_url( admin_url( 'admin.php?page=ifs-parking-vehicles&tab=all_vehicles&action=delete_vehicle&id=' . $log->id ), 'ifs_delete_vehicle_' . $log->id );
 							$view_url     = admin_url( 'admin.php?page=ifs-parking-vehicles&action=view&id=' . $log->id );
 
 							$invoice_num = ! empty( $log->reference_id ) ? strtok( $log->reference_id, ' [' ) : 'NPMS-' . str_pad( (string) $log->id, 4, '0', STR_PAD_LEFT );
@@ -183,18 +271,27 @@ function ifs_parking_render_vehicle_list( $table_logs, $currency_symbol, $auto_p
 							// Car-general বা হাইফেন জাতীয় নাম থেকে শুধু প্রথম অংশ (যেমন: Car) আলাদা করা।
 							$raw_type = $log->parking_type;
 							if ( false !== strpos( $raw_type, '-' ) ) {
-								$type_parts   = explode( '-', $raw_type );
-								$parking_key  = trim( ucfirst( $type_parts[0] ) );
+								$type_parts  = explode( '-', $raw_type );
+								$parking_key = trim( ucfirst( $type_parts[0] ) );
 							} else {
-								$parking_key  = ucfirst( trim( $raw_type ) );
+								$parking_key = ucfirst( trim( $raw_type ) );
 							}
 							$parking_type = isset( $veh_labels_bd[ $parking_key ] ) ? $veh_labels_bd[ $parking_key ] : $parking_key;
 
-							$driver_name    = ! empty( $log->driver_name ) ? $log->driver_name : __( 'তথ্য নেই', 'ifs-parking' );
-							$driver_phone   = ! empty( $log->driver_phone ) ? ifs_parking_list_bn_num( $log->driver_phone ) : '';
-							$formatted_fee  = $currency_symbol . ifs_parking_list_bn_num( number_format_i18n( (float) $log->fee, 2 ) );
-							$entry_ts       = strtotime( $log->entry_time );
-							$formatted_time = $entry_ts ? ifs_parking_list_bn_num( date_i18n( 'j M, Y - h:i A', $entry_ts ) ) : $log->entry_time;
+							$driver_name   = ! empty( $log->driver_name ) ? $log->driver_name : __( 'তথ্য নেই', 'ifs-parking' );
+							$driver_phone  = ! empty( $log->driver_phone ) ? ifs_parking_list_bn_num( $log->driver_phone ) : '';
+							$formatted_fee = $currency_symbol . ifs_parking_list_bn_num( number_format_i18n( (float) $log->fee, 2 ) );
+
+							// বাংলাদেশ সময় (Asia/Dhaka) অনুযায়ী সঠিক সময় ফরম্যাট।
+							$formatted_time = $log->entry_time;
+							if ( ! empty( $log->entry_time ) ) {
+								try {
+									$dt_entry       = new DateTimeImmutable( $log->entry_time, $bd_tz );
+									$formatted_time = ifs_parking_list_bn_num( wp_date( 'j M, Y - h:i A', $dt_entry->getTimestamp(), $bd_tz ) );
+								} catch ( Exception $e ) {
+									$formatted_time = $log->entry_time;
+								}
+							}
 							?>
 							<tr class="ifs-vehicle-row">
 								<td>
@@ -273,9 +370,11 @@ function ifs_parking_render_vehicle_list( $table_logs, $currency_symbol, $auto_p
 										<?php endif; ?>
 
 										<!-- ডিলিট বাটন -->
-										<a href="<?php echo esc_url( $delete_url ); ?>" onclick="return confirm('<?php echo esc_js( __( 'আপনি কি নিশ্চিতভাবে এই পার্কিং রেকর্ডটি মুছে ফেলতে চান?', 'ifs-parking' ) ); ?>');" class="ifs-btn-action ifs-btn-delete" title="<?php esc_attr_e( 'ডিলিট করুন', 'ifs-parking' ); ?>" style="padding: 4px 8px; background: #fee2e2; color: #b91c1c; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 11px;">
-											<?php esc_html_e( 'ডিলিট', 'ifs-parking' ); ?>
-										</a>
+										<?php if ( current_user_can( 'manage_options' ) ) : ?>
+											<a href="<?php echo esc_url( $delete_url ); ?>" onclick="return confirm('<?php echo esc_js( __( 'আপনি কি নিশ্চিতভাবে এই পার্কিং রেকর্ডটি মুছে ফেলতে চান?', 'ifs-parking' ) ); ?>');" class="ifs-btn-action ifs-btn-delete" title="<?php esc_attr_e( 'ডিলিট করুন', 'ifs-parking' ); ?>" style="padding: 4px 8px; background: #fee2e2; color: #b91c1c; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 11px;">
+												<?php esc_html_e( 'ডিলিট', 'ifs-parking' ); ?>
+											</a>
+										<?php endif; ?>
 									</div>
 								</td>
 							</tr>
@@ -362,11 +461,17 @@ function ifs_parking_render_vehicle_list( $table_logs, $currency_symbol, $auto_p
 				setTimeout(function() {
 					triggerReceiptPrint(targetBtn);
 					if (window.history && window.history.replaceState) {
-						var cleanUrl = window.location.href.replace(/&auto_print=\d+/g, '');
+						var cleanUrl = window.location.href.replace(/(&|\?)(auto_print|action|id|_wpnonce)=[^&]*/g, '');
 						window.history.replaceState({}, document.title, cleanUrl);
 					}
 				}, 350);
 			}
+		}
+
+		// ডিলিট বা চেকআউট শেষে URL থেকে অপ্রয়োজনীয় প্যারামিটার পরিষ্কার করা যাতে পেজ রিফ্রেশে পুনরায় অ্যাকশন না চলে
+		if (window.history && window.history.replaceState && window.location.search.indexOf('action=delete_vehicle') !== -1) {
+			var cleanedDeleteUrl = window.location.href.replace(/(&|\?)(action|id|_wpnonce)=[^&]*/g, '');
+			window.history.replaceState({}, document.title, cleanedDeleteUrl);
 		}
 	});
 	</script>
