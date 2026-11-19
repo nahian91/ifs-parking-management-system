@@ -63,6 +63,11 @@ function ifs_parking_render_vehicles_content() {
 	$auto_print_id = isset( $_GET['auto_print'] ) ? absint( $_GET['auto_print'] ) : 0;
 	// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+	$has_logs_table = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_logs ) ) === $table_logs );
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+	$has_slots_table = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_slots ) ) === $table_slots );
+
 	// চেক-আউট (গাড়ি রিলিজ) হ্যান্ডলার (GET লিংকের ফলব্যাক সাপোর্ট)।
 	if ( 'checkout' === $action && $log_id > 0 && current_user_can( 'read' ) ) {
 		check_admin_referer( 'ifs_checkout_vehicle_' . $log_id );
@@ -72,7 +77,7 @@ function ifs_parking_render_vehicles_content() {
 			if ( function_exists( 'ifs_parking_checkout_vehicle' ) ) {
 				ifs_parking_checkout_vehicle( $table_logs, $log_id );
 			}
-		} else {
+		} elseif ( $has_logs_table ) {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			$log_item = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM `{$table_logs}` WHERE id = %d", $log_id ) );
 
@@ -89,7 +94,7 @@ function ifs_parking_render_vehicles_content() {
 					array( '%d' )
 				);
 
-				if ( ! empty( $log_item->slot_number ) ) {
+				if ( $has_slots_table && ! empty( $log_item->slot_number ) ) {
 					// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 					$wpdb->update(
 						$table_slots,
@@ -110,7 +115,7 @@ function ifs_parking_render_vehicles_content() {
 		.ifs-vehicles-wrapper {
 			margin: 8px 12px 20px 0;
 			box-sizing: border-box;
-			font-family: 'Hind Siliguri', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+			font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 		}
 		.ifs-top-quick-switch {
 			max-width: 980px;

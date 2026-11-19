@@ -21,13 +21,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // প্লাগইন কনস্ট্যান্টসমূহ।
-define( 'IFS_PARKING_VERSION', '1.1.0' );
+define( 'IFS_PARKING_VERSION', '1.0' );
 define( 'IFS_PARKING_FILE', __FILE__ );
 define( 'IFS_PARKING_PATH', plugin_dir_path( __FILE__ ) );
 define( 'IFS_PARKING_URL', plugin_dir_url( __FILE__ ) );
 
 /**
- * বাংলা ও অন্যান্য ভাষার অনুবাদ (Text Domain) লোড করা।
+ * অনুবাদ (Text Domain) লোড করা।
  *
  * @return void
  */
@@ -41,7 +41,7 @@ function ifs_parking_load_textdomain() {
 add_action( 'plugins_loaded', 'ifs_parking_load_textdomain' );
 
 /**
- * প্লাগইনের প্রয়োজনীয় মডিউল ফাইলগুলো নিরাপদভাবে লোড করা।
+ * প্লাগইনের প্রয়োজনীয় মডিউল ফাইলগুলো নিরাপদভাবে লোড করা।
  *
  * @return void
  */
@@ -100,7 +100,7 @@ function ifs_parking_plugin_deactivation() {
 register_deactivation_hook( __FILE__, 'ifs_parking_plugin_deactivation' );
 
 /**
- * এডমিন স্ক্রিপ্ট, বাংলা ফন্ট ও স্টাইল এনকিউ।
+ * এডমিন স্ক্রিপ্ট ও স্টাইল এনকিউ।
  *
  * @param string $hook কারেন্ট এডমিন পেজ হুক।
  * @return void
@@ -110,18 +110,10 @@ function ifs_parking_admin_enqueue_assets( $hook ) {
 		return;
 	}
 
-	// প্রমিত বাংলা ফন্ট (Hind Siliguri) এবং ইংরেজি ফন্ট (Plus Jakarta Sans)।
-	wp_enqueue_style(
-		'ifs-parking-fonts',
-		'https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap',
-		array(),
-		IFS_PARKING_VERSION
-	);
-
 	wp_enqueue_style(
 		'ifs-parking-admin-css',
 		IFS_PARKING_URL . 'assets/css/admin.css',
-		array( 'ifs-parking-fonts' ),
+		array(),
 		IFS_PARKING_VERSION,
 		'all'
 	);
@@ -254,26 +246,19 @@ function ifs_parking_login_viewport_meta() {
 add_action( 'login_head', 'ifs_parking_login_viewport_meta' );
 
 /**
- * সুপার মোবাইল ফ্রেন্ডলি ও রেসপন্সিভ লগইন ডিজাইন (Light Theme + Bangla Font)।
+ * সুপার মোবাইল ফ্রেন্ডলি ও রেসপন্সিভ লগইন ডিজাইন।
  *
  * @return void
  */
 function ifs_parking_clean_default_login_styles() {
 	$site_title = get_option( 'ifs_parking_site_title', __( 'আইএফএস পার্কিং সিস্টেম', 'ifs-parking' ) );
 	$site_logo  = get_option( 'ifs_parking_site_logo', '' );
-
-	wp_enqueue_style(
-		'ifs-parking-login-fonts',
-		'https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap',
-		array(),
-		IFS_PARKING_VERSION
-	);
 	?>
 	<style type="text/css">
 		/* বডি ও ব্যাকগ্রাউন্ড অপ্টিমাইজেশন */
 		body.login {
 			background: #f1f5f9 !important;
-			font-family: 'Hind Siliguri', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif !important;
+			font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
 			color: #0f172a !important;
 			display: flex;
 			flex-direction: column;
@@ -284,6 +269,14 @@ function ifs_parking_clean_default_login_styles() {
 			padding: 16px !important;
 			box-sizing: border-box;
 			overflow-x: hidden;
+		}
+
+		body.login *,
+		body.login input,
+		body.login button,
+		body.login label,
+		body.login a {
+			font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
 		}
 
 		#login {
@@ -322,6 +315,7 @@ function ifs_parking_clean_default_login_styles() {
 		#login h1 a::after {
 			content: '<?php echo esc_js( $site_title ); ?>';
 			display: block;
+			font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
 			font-size: 22px;
 			font-weight: 700;
 			color: #0f172a;
@@ -353,7 +347,7 @@ function ifs_parking_clean_default_login_styles() {
 			display: block !important;
 		}
 
-		/* ইনপুট ফিল্ড (iOS জুম রোধ করতে ফন্ট সাইজ কমপক্ষে 16px রাখা হয়েছে) */
+		/* ইনপুট ফিল্ড (iOS জুম রোধ করতে ফন্ট সাইজ কমপক্ষে 16px রাখা হয়েছে) */
 		body.login input[type="text"],
 		body.login input[type="password"] {
 			width: 100% !important;
@@ -406,7 +400,7 @@ function ifs_parking_clean_default_login_styles() {
 			border: none !important;
 			border-radius: 8px !important;
 			height: 48px !important;
-			font-family: 'Hind Siliguri', 'Plus Jakarta Sans', sans-serif !important;
+			font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
 			font-size: 16px !important;
 			font-weight: 600 !important;
 			color: #ffffff !important;

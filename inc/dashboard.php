@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * ইংরেজি সংখ্যাকে বাংলা সংখ্যায় রূপান্তর করার হেল্পার ফাংশন।
+ * ইংরেজি সংখ্যাকে বাংলা সংখ্যায় রূপান্তর করার হেল্পার ফাংশন।
  *
  * @param string|int|float $number ইনপুট সংখ্যা বা স্ট্রিং।
  * @return string
@@ -106,7 +106,6 @@ function ifs_parking_render_dashboard_content() {
 	$total_slots    = 0;
 	$free_slots     = 0;
 	$slot_stats_raw = array();
-	$recent_logs    = array();
 
 	// টেবিল বিদ্যমান আছে কি না তা যাচাই করা।
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -141,9 +140,6 @@ function ifs_parking_render_dashboard_content() {
 				'Parked'
 			)
 		);
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$recent_logs = $wpdb->get_results( "SELECT * FROM `{$table_logs}` ORDER BY id DESC LIMIT 5" );
 	}
 
 	if ( $has_slots_table ) {
@@ -204,21 +200,14 @@ function ifs_parking_render_dashboard_content() {
 		}
 	}
 
-	// পার্কিং টাইপ বাংলা ম্যাপিং।
-	$parking_type_labels = array(
-		'hourly'  => __( 'ঘণ্টাভিত্তিক', 'ifs-parking' ),
-		'daily'   => __( 'দৈনিক', 'ifs-parking' ),
-		'monthly' => __( 'মাসিক', 'ifs-parking' ),
-	);
-
 	$allowed_svg = ifs_parking_allowed_svg_tags();
 	?>
 	<style>
-		/* মোবাইল রেসপনসিভনেস ও প্রমিত বাংলা টাইপোগ্রাফি অ্যাডাপ্টেশন */
+		/* মোবাইল রেসপনসিভনেস ও সিস্টেম টাইপোগ্রাফি অ্যাডাপ্টেশন */
 		.ifs-dashboard-wrapper {
 			margin: 10px 15px 20px 0;
 			box-sizing: border-box;
-			font-family: 'Hind Siliguri', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+			font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 		}
 		.ifs-dashboard-banner {
 			display: flex;
@@ -281,14 +270,6 @@ function ifs_parking_render_dashboard_content() {
 			height: 100%;
 			border-radius: 10px;
 			transition: width 0.3s ease;
-		}
-		.ifs-table-responsive {
-			width: 100%;
-			overflow-x: auto;
-			-webkit-overflow-scrolling: touch;
-		}
-		.ifs-table-responsive table {
-			min-width: 650px;
 		}
 
 		/* ছোট পর্দা ও মোবাইল ভিউপোর্ট রুলস */
@@ -513,77 +494,6 @@ function ifs_parking_render_dashboard_content() {
 						</div>
 					</div>
 				<?php endforeach; ?>
-			</div>
-		</div>
-
-		<!-- সাম্প্রতিক ৫টি পার্কিং এন্ট্রি -->
-		<div class="ifs-card ifs-content-card">
-			<div class="ifs-card-header">
-				<h3 class="ifs-card-title">
-					<svg class="ifs-icon-brand" viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
-					<?php esc_html_e( 'সাম্প্রতিক পার্কিং ট্র্যাকিং', 'ifs-parking' ); ?>
-				</h3>
-				<a href="<?php echo esc_url( admin_url( 'admin.php?page=ifs-parking-vehicles' ) ); ?>" class="ifs-link-action">
-					<?php esc_html_e( 'সবগুলো দেখুন', 'ifs-parking' ); ?>
-					<svg class="ifs-icon-xs" viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
-				</a>
-			</div>
-
-			<div class="ifs-table-responsive">
-				<table class="wp-list-table widefat fixed striped ifs-custom-table">
-					<thead>
-						<tr>
-							<th class="ifs-col-id"><?php esc_html_e( 'আইডি', 'ifs-parking' ); ?></th>
-							<th><?php esc_html_e( 'গাড়ি নম্বর', 'ifs-parking' ); ?></th>
-							<th><?php esc_html_e( 'ডিপার্টমেন্ট', 'ifs-parking' ); ?></th>
-							<th><?php esc_html_e( 'ক্যাটাগরি', 'ifs-parking' ); ?></th>
-							<th><?php esc_html_e( 'চালক', 'ifs-parking' ); ?></th>
-							<th><?php esc_html_e( 'প্রবেশের সময়', 'ifs-parking' ); ?></th>
-							<th class="ifs-col-status"><?php esc_html_e( 'স্ট্যাটাস', 'ifs-parking' ); ?></th>
-						</tr>
-					</thead>
-					<tbody>
-						<?php if ( ! empty( $recent_logs ) ) : ?>
-							<?php
-							foreach ( $recent_logs as $r_log ) :
-								$type_key    = strtolower( (string) $r_log->parking_type );
-								$type_label  = isset( $parking_type_labels[ $type_key ] ) ? $parking_type_labels[ $type_key ] : ucfirst( $r_log->parking_type );
-								$entry_ts    = strtotime( $r_log->entry_time );
-								$entry_label = $entry_ts ? ifs_parking_to_bn_number( date_i18n( 'j M, Y - h:i A', $entry_ts ) ) : $r_log->entry_time;
-								?>
-								<tr>
-									<td class="ifs-td-id">#<?php echo esc_html( ifs_parking_to_bn_number( $r_log->id ) ); ?></td>
-									<td><strong><?php echo esc_html( $r_log->vehicle_number ); ?></strong></td>
-									<td>
-										<span class="ifs-badge-dept">
-											<?php echo esc_html( ! empty( $r_log->reference_id ) ? $r_log->reference_id : __( 'সাধারণ', 'ifs-parking' ) ); ?>
-										</span>
-									</td>
-									<td><?php echo esc_html( $type_label ); ?></td>
-									<td class="ifs-td-muted"><?php echo esc_html( ! empty( $r_log->driver_name ) ? $r_log->driver_name : __( 'তথ্য নেই', 'ifs-parking' ) ); ?></td>
-									<td class="ifs-td-time"><?php echo esc_html( $entry_label ); ?></td>
-									<td class="ifs-td-status">
-										<?php if ( 'Parked' === $r_log->status ) : ?>
-											<span class="ifs-status-pill ifs-status-parked">
-												<svg class="ifs-dot-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>
-												<?php esc_html_e( 'পার্ক করা', 'ifs-parking' ); ?>
-											</span>
-										<?php else : ?>
-											<span class="ifs-status-pill ifs-status-exited">
-												<svg class="ifs-check-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
-												<?php esc_html_e( 'বের হয়েছে', 'ifs-parking' ); ?>
-											</span>
-										<?php endif; ?>
-									</td>
-								</tr>
-							<?php endforeach; ?>
-						<?php else : ?>
-							<tr>
-								<td colspan="7" class="ifs-empty-cell"><?php esc_html_e( 'কোনো সাম্প্রতিক পার্কিং রেকর্ড নেই।', 'ifs-parking' ); ?></td>
-							</tr>
-						<?php endif; ?>
-					</tbody>
-				</table>
 			</div>
 		</div>
 	</div>

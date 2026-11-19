@@ -276,11 +276,35 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		$just_checked_in = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM `{$table_logs}` WHERE id = %d", $new_log_id ) );
 	}
 
-	// সাম্প্রতিক গাড়ির তালিকা (Recent Entries - সর্বশেষ ৩০টি)।
+	// আজকের সব এন্ট্রি আগে দেখানো হবে, এরপর পূর্ববর্তী এন্ট্রিগুলো প্যাজিনেশনের জন্য লোড হবে।
+	$today_date  = current_time( 'Y-m-d' );
+	$today_start = $today_date . ' 00:00:00';
+	$today_end   = $today_date . ' 23:59:59';
+
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-	$recent_logs = $wpdb->get_results( "SELECT * FROM `{$table_logs}` ORDER BY id DESC LIMIT 30" );
+	$today_logs = $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT * FROM `{$table_logs}` WHERE entry_time >= %s AND entry_time <= %s ORDER BY id DESC",
+			$today_start,
+			$today_end
+		)
+	);
+
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	$older_logs = $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT * FROM `{$table_logs}` WHERE entry_time < %s ORDER BY id DESC LIMIT 90",
+			$today_start
+		)
+	);
+
+	$recent_logs = array_merge(
+		is_array( $today_logs ) ? $today_logs : array(),
+		is_array( $older_logs ) ? $older_logs : array()
+	);
 
 	$now_ts        = current_time( 'timestamp' );
+	$today_count   = is_array( $today_logs ) ? count( $today_logs ) : 0;
 	$active_count  = 0;
 	$overdue_count = 0;
 	if ( ! empty( $recent_logs ) ) {
@@ -305,11 +329,19 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		'Cycle' => __( 'সাইকেল', 'ifs-parking' ),
 	);
 
+	// ক্রম: আগে Bike, তারপর Car, তারপর CNG, এরপর Others।
 	$brta_letters_bd = array(
-		''  => __( 'বর্ণ নেই', 'ifs-parking' ),
+		// Bike
+		'হ' => __( 'হ (৮০-১২৫ সিসি বাইক)', 'ifs-parking' ),
+		'ল' => __( 'ল (১৩৫-২০০ সিসি বাইক)', 'ifs-parking' ),
+		// Car
 		'ক' => __( 'ক (৮০০ সিসি কার)', 'ifs-parking' ),
 		'খ' => __( 'খ (১০০০-১৩০০ কার)', 'ifs-parking' ),
 		'গ' => __( 'গ (১৫০০-১৮০০ কার)', 'ifs-parking' ),
+		// CNG
+		'দ' => __( 'দ (সিএনজি প্রাইভেট)', 'ifs-parking' ),
+		'থ' => __( 'থ (সিএনজি ভাড়ায়)', 'ifs-parking' ),
+		// Others
 		'ঘ' => __( 'ঘ (জীপগাড়ি)', 'ifs-parking' ),
 		'চ' => __( 'চ (মাইক্রোবাস/নোয়াহ)', 'ifs-parking' ),
 		'ছ' => __( 'ছ (লেগুনা/ভাড়ায়)', 'ifs-parking' ),
@@ -318,10 +350,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		'ড' => __( 'ড (ট্রাক মাঝারী)', 'ifs-parking' ),
 		'ন' => __( 'ন (পিকআপ ছোট)', 'ifs-parking' ),
 		'ম' => __( 'ম (ডেলিভারি ভ্যান)', 'ifs-parking' ),
-		'দ' => __( 'দ (সিএনজি প্রাইভেট)', 'ifs-parking' ),
-		'থ' => __( 'থ (সিএনজি ভাড়ায়)', 'ifs-parking' ),
-		'হ' => __( 'হ (৮০-১২৫ সিসি বাইক)', 'ifs-parking' ),
-		'ল' => __( 'ল (১৩৫-২০০ সিসি বাইক)', 'ifs-parking' ),
+		''  => __( 'বর্ণ নেই', 'ifs-parking' ),
 	);
 
 	$metro_options = array(
@@ -421,16 +450,16 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			background: #ffffff;
 			border: 1px solid #e2e8f0;
 			border-radius: 18px;
-			padding: 18px;
+			padding: 20px;
 			margin-bottom: 16px;
-			box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
+			box-shadow: 0 6px 24px rgba(15, 23, 42, 0.045);
 		}
 		.ifs-card-top-bar {
 			display: flex;
 			align-items: center;
 			justify-content: space-between;
 			gap: 10px;
-			margin-bottom: 14px;
+			margin-bottom: 16px;
 			padding-bottom: 12px;
 			border-bottom: 1px solid #f1f5f9;
 			flex-wrap: wrap;
@@ -448,8 +477,8 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			background: #f8fafc;
 			border: 1.5px solid #cbd5e1;
 			color: #0f172a;
-			padding: 5px 12px;
-			border-radius: 9px;
+			padding: 6px 14px;
+			border-radius: 10px;
 			font-size: 13.5px;
 			font-weight: 700;
 			letter-spacing: 0.2px;
@@ -512,34 +541,58 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			fill: #ffffff;
 		}
 
-		/* মিনিমাল ইনপুট গ্রিড */
+		/* সব ইনপুট ও সিলেক্টের সমান উচ্চতা (Equal Height 48px) */
 		.ifs-plate-row {
 			display: grid;
 			grid-template-columns: 1.05fr 1.2fr 1.45fr;
-			gap: 8px;
+			gap: 10px;
 			margin-bottom: 14px;
+			align-items: stretch;
 		}
 		.ifs-meta-row {
 			display: grid;
 			grid-template-columns: 1fr 1fr;
 			gap: 10px;
 			margin-bottom: 14px;
+			align-items: stretch;
 		}
-		.ifs-m-input {
+		.ifs-unified-app .ifs-m-input,
+		.ifs-unified-app select.ifs-m-input,
+		.ifs-unified-app input[type="text"].ifs-m-input,
+		.ifs-unified-app input[type="tel"].ifs-m-input {
 			width: 100%;
-			height: 46px;
-			padding: 0 12px;
+			max-width: none;
+			height: 48px;
+			min-height: 48px;
+			max-height: 48px;
+			line-height: 46px;
+			padding: 0 14px;
+			margin: 0;
 			border: 1.5px solid #cbd5e1;
-			border-radius: 11px;
+			border-radius: 12px;
 			font-size: 15px;
 			font-weight: 500;
 			color: #0f172a;
-			background: #ffffff;
-			transition: border-color 0.18s ease, box-shadow 0.18s ease;
+			background-color: #ffffff;
+			vertical-align: middle;
+			box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+			transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
 		}
-		.ifs-m-input:focus {
+		.ifs-unified-app select.ifs-m-input {
+			appearance: none;
+			-webkit-appearance: none;
+			-moz-appearance: none;
+			padding-right: 36px;
+			background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+			background-repeat: no-repeat;
+			background-position: right 12px center;
+			background-size: 16px 16px;
+			cursor: pointer;
+		}
+		.ifs-unified-app .ifs-m-input:focus {
 			border-color: #0284c7;
 			outline: none;
+			background-color: #ffffff;
 			box-shadow: 0 0 0 3.5px rgba(2, 132, 199, 0.14);
 		}
 		.ifs-plate-num-input {
@@ -547,7 +600,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			letter-spacing: 0.4px;
 		}
 
-		/* নির্ধারিত ফি স্ট্রিপ */
+		/* নির্ধারিত ফি স্ট্রিপ ও সমান উচ্চতার প্যাকেজ সিলেক্ট */
 		.ifs-rate-strip {
 			display: flex;
 			align-items: center;
@@ -558,25 +611,40 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			padding: 10px 14px;
 			margin-bottom: 14px;
 			flex-wrap: wrap;
-			gap: 8px;
+			gap: 10px;
 		}
-		.ifs-rate-select {
-			height: 36px;
-			border-radius: 9px;
-			border: 1px solid #7dd3fc;
-			background: #ffffff;
+		.ifs-unified-app select.ifs-rate-select {
+			appearance: none;
+			-webkit-appearance: none;
+			-moz-appearance: none;
+			height: 40px;
+			min-height: 40px;
+			max-height: 40px;
+			line-height: 38px;
+			border-radius: 10px;
+			border: 1.5px solid #7dd3fc;
+			background-color: #ffffff;
+			background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%230369a1' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+			background-repeat: no-repeat;
+			background-position: right 10px center;
+			background-size: 14px 14px;
 			color: #0369a1;
-			padding: 0 10px;
+			padding: 0 32px 0 12px;
+			margin: 0;
 			font-weight: 700;
 			font-size: 13px;
 			cursor: pointer;
 		}
 
-		/* প্রাইমারি ও প্রিন্ট অ্যাকশন বাটন */
+		/* প্রাইমারি চেক-ইন ও প্রিন্ট অ্যাকশন বাটন */
 		.ifs-action-btn-grid {
 			display: grid;
-			grid-template-columns: 1.4fr 1fr;
+			grid-template-columns: 1fr;
 			gap: 10px;
+			align-items: stretch;
+		}
+		.ifs-action-btn-grid.has-print-btn {
+			grid-template-columns: 1.35fr 1fr;
 		}
 		.ifs-btn-checkin-now {
 			width: 100%;
@@ -596,13 +664,16 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			transition: transform 0.12s ease, box-shadow 0.12s ease;
 			-webkit-tap-highlight-color: transparent;
 		}
+		.ifs-btn-checkin-now:hover {
+			box-shadow: 0 8px 20px rgba(2, 132, 199, 0.34);
+		}
 		.ifs-btn-checkin-now:active {
 			transform: scale(0.98);
 		}
 		.ifs-btn-print-slip-main {
 			width: 100%;
 			height: 50px;
-			background: #0f172a;
+			background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
 			color: #ffffff;
 			border: none;
 			border-radius: 12px;
@@ -613,6 +684,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			align-items: center;
 			justify-content: center;
 			gap: 8px;
+			box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
 			transition: transform 0.12s ease, background 0.15s ease;
 			-webkit-tap-highlight-color: transparent;
 		}
@@ -628,6 +700,11 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			flex-wrap: wrap;
 			gap: 10px;
 			margin-bottom: 12px;
+		}
+		.ifs-recent-submeta {
+			font-size: 12.5px;
+			color: #64748b;
+			margin-top: 3px;
 		}
 		.ifs-status-pills {
 			display: flex;
@@ -674,9 +751,12 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			fill: #94a3b8;
 			pointer-events: none;
 		}
-		.ifs-search-wrap .ifs-m-input {
-			padding-left: 38px;
-			background: #f8fafc;
+		.ifs-unified-app .ifs-search-wrap input[type="text"].ifs-m-input {
+			padding-left: 40px;
+			background-color: #f8fafc;
+		}
+		.ifs-unified-app .ifs-search-wrap input[type="text"].ifs-m-input:focus {
+			background-color: #ffffff;
 		}
 
 		/* রিসেন্ট কার্ড আইটেম */
@@ -697,14 +777,23 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			background: #ffffff;
 			box-shadow: 0 1px 4px rgba(15, 23, 42, 0.03);
 			flex-wrap: wrap;
-			transition: border-color 0.18s ease;
+			transition: border-color 0.18s ease, box-shadow 0.18s ease;
 		}
 		.ifs-recent-item:hover {
 			border-color: #cbd5e1;
+			box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
 		}
 		.ifs-recent-item.is-overdue-card {
 			border-color: #fcd34d;
 			background: #fffbeb;
+		}
+		.ifs-today-tag {
+			font-size: 11px;
+			font-weight: 700;
+			padding: 2px 8px;
+			border-radius: 99px;
+			background: #eff6ff;
+			color: #1d4ed8;
 		}
 		.ifs-recent-actions {
 			display: flex;
@@ -725,7 +814,12 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			align-items: center;
 			justify-content: center;
 			gap: 5px;
+			transition: background 0.15s ease, border-color 0.15s ease;
 			-webkit-tap-highlight-color: transparent;
+		}
+		.ifs-btn-mini-print:hover {
+			background: #f8fafc;
+			border-color: #94a3b8;
 		}
 		.ifs-btn-mini-checkout {
 			height: 40px;
@@ -742,14 +836,70 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			justify-content: center;
 			gap: 5px;
 			box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25);
+			transition: transform 0.12s ease;
 			-webkit-tap-highlight-color: transparent;
 		}
+		.ifs-btn-mini-checkout:active {
+			transform: scale(0.98);
+		}
 
-		/* ইনস্ট্যান্ট প্রিন্ট স্লিপ (শুধুমাত্র প্রিন্টের সময় দৃশ্যমান হবে) */
+		/* প্যাজিনেশন কন্ট্রোল */
+		.ifs-pagination-bar {
+			display: none;
+			margin-top: 16px;
+			padding-top: 14px;
+			border-top: 1px solid #f1f5f9;
+			align-items: center;
+			justify-content: space-between;
+			gap: 10px;
+			flex-wrap: wrap;
+		}
+		.ifs-pagination-info {
+			font-size: 13px;
+			color: #475569;
+			font-weight: 600;
+		}
+		.ifs-pagination-buttons {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			flex-wrap: wrap;
+		}
+		.ifs-page-btn {
+			min-width: 36px;
+			height: 36px;
+			padding: 0 10px;
+			border-radius: 9px;
+			border: 1px solid #cbd5e1;
+			background: #ffffff;
+			color: #334155;
+			font-size: 13px;
+			font-weight: 700;
+			cursor: pointer;
+			transition: all 0.15s ease;
+		}
+		.ifs-page-btn:hover:not(:disabled) {
+			border-color: #0284c7;
+			color: #0284c7;
+		}
+		.ifs-page-btn.is-current {
+			background: #0284c7;
+			border-color: #0284c7;
+			color: #ffffff;
+		}
+		.ifs-page-btn:disabled {
+			opacity: 0.45;
+			cursor: not-allowed;
+		}
+
+		/* প্রফেশনাল থার্মাল প্রিন্ট স্লিপ ডিজাইন */
 		#ifs-instant-print-sheet {
 			display: none;
 		}
 		@media print {
+			@page {
+				margin: 6mm;
+			}
 			body * { visibility: hidden !important; }
 			#ifs-instant-print-sheet,
 			#ifs-instant-print-sheet * {
@@ -761,11 +911,115 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 				left: 0;
 				top: 0;
 				width: 100%;
-				max-width: 340px;
-				padding: 14px;
+				max-width: 320px;
+				margin: 0 auto;
+				padding: 12px 10px;
 				background: #ffffff;
-				color: #000000;
-				font-size: 13px;
+				color: #0f172a;
+				font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+				font-size: 12.5px;
+				line-height: 1.45;
+			}
+			.ifs-slip-brand-box {
+				text-align: center;
+				border-bottom: 1.5px dashed #0f172a;
+				padding-bottom: 10px;
+				margin-bottom: 10px;
+			}
+			.ifs-slip-brand-name {
+				font-size: 16px;
+				font-weight: 800;
+				display: block;
+				color: #0f172a;
+			}
+			.ifs-slip-helpline {
+				font-size: 11.5px;
+				color: #334155;
+				margin-top: 2px;
+				display: block;
+			}
+			.ifs-slip-doc-badge {
+				display: inline-block;
+				margin-top: 6px;
+				padding: 2px 10px;
+				border: 1px solid #0f172a;
+				border-radius: 4px;
+				font-size: 11px;
+				font-weight: 700;
+				letter-spacing: 0.3px;
+			}
+			.ifs-slip-plate-hero {
+				text-align: center;
+				background: #f8fafc;
+				border: 1.5px solid #0f172a;
+				border-radius: 6px;
+				padding: 8px 6px;
+				margin-bottom: 10px;
+			}
+			.ifs-slip-plate-label {
+				font-size: 10.5px;
+				font-weight: 600;
+				color: #475569;
+				display: block;
+				margin-bottom: 2px;
+			}
+			.ifs-slip-plate-value {
+				font-size: 16px;
+				font-weight: 800;
+				color: #0f172a;
+			}
+			.ifs-slip-meta-table {
+				width: 100%;
+				border-collapse: collapse;
+				margin-bottom: 10px;
+			}
+			.ifs-slip-meta-table td {
+				padding: 4px 2px;
+				border-bottom: 1px dotted #cbd5e1;
+				vertical-align: top;
+				font-size: 12px;
+			}
+			.ifs-slip-meta-table td.ifs-slip-k {
+				color: #475569;
+				font-weight: 600;
+				width: 42%;
+			}
+			.ifs-slip-meta-table td.ifs-slip-v {
+				color: #0f172a;
+				font-weight: 700;
+				text-align: right;
+			}
+			.ifs-slip-fee-box {
+				border-top: 1.5px dashed #0f172a;
+				border-bottom: 1.5px dashed #0f172a;
+				padding: 8px 2px;
+				margin-bottom: 10px;
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+			}
+			.ifs-slip-fee-title {
+				font-size: 12px;
+				font-weight: 700;
+				color: #0f172a;
+			}
+			.ifs-slip-fee-amount {
+				font-size: 15.5px;
+				font-weight: 800;
+				color: #0f172a;
+			}
+			.ifs-slip-note {
+				font-size: 11px;
+				color: #334155;
+				background: #f8fafc;
+				border-left: 3px solid #0f172a;
+				padding: 6px 8px;
+				margin-bottom: 10px;
+			}
+			.ifs-slip-footer {
+				text-align: center;
+				font-size: 11px;
+				color: #334155;
 			}
 		}
 
@@ -781,13 +1035,20 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			}
 			.ifs-plate-row,
 			.ifs-meta-row,
-			.ifs-action-btn-grid {
+			.ifs-action-btn-grid,
+			.ifs-action-btn-grid.has-print-btn {
 				grid-template-columns: 1fr;
 				gap: 10px;
 			}
-			.ifs-m-input {
+			.ifs-unified-app .ifs-m-input,
+			.ifs-unified-app select.ifs-m-input,
+			.ifs-unified-app input[type="text"].ifs-m-input,
+			.ifs-unified-app input[type="tel"].ifs-m-input {
 				font-size: 16px !important;
-				height: 48px;
+				height: 50px;
+				min-height: 50px;
+				max-height: 50px;
+				line-height: 48px;
 			}
 			.ifs-status-pills {
 				width: 100%;
@@ -808,6 +1069,14 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 				flex: 1;
 				height: 44px;
 			}
+			.ifs-pagination-bar {
+				flex-direction: column;
+				align-items: stretch;
+				text-align: center;
+			}
+			.ifs-pagination-buttons {
+				justify-content: center;
+			}
 		}
 	</style>
 
@@ -820,7 +1089,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 					<?php esc_html_e( 'নতুন গাড়ি চেক-ইন', 'ifs-parking' ); ?>
 				</h2>
 				<div class="ifs-live-plate-badge" id="ifs-live-plate-preview">
-					<?php esc_html_e( 'সিলেট মেট্রো গ', 'ifs-parking' ); ?>
+					<?php esc_html_e( 'সিলেট মেট্রো হ', 'ifs-parking' ); ?>
 				</div>
 			</div>
 
@@ -900,16 +1169,36 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 					</select>
 				</div>
 
-				<div class="ifs-action-btn-grid">
-					<button type="submit" name="submit_vehicle" class="ifs-btn-checkin-now">
+				<?php $show_print_after_checkin = ( null !== $just_checked_in ); ?>
+				<div class="ifs-action-btn-grid <?php echo $show_print_after_checkin ? 'has-print-btn' : ''; ?>">
+					<button type="submit" name="submit_vehicle" id="ifs-checkin-submit-btn" class="ifs-btn-checkin-now">
 						<svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:currentColor;"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
 						<?php esc_html_e( 'চেক-ইন সম্পন্ন করুন', 'ifs-parking' ); ?>
 					</button>
 
-					<button type="button" id="ifs-print-latest-btn" class="ifs-btn-print-slip-main">
-						<svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:currentColor;"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>
-						<?php esc_html_e( 'স্লিপ প্রিন্ট (১-ক্লিক)', 'ifs-parking' ); ?>
-					</button>
+					<?php if ( $show_print_after_checkin ) : ?>
+						<?php
+						$j_ts   = strtotime( $just_checked_in->entry_time );
+						$j_time = $j_ts ? ifs_parking_veh_bn_num( date_i18n( 'j M, Y - h:i A', $j_ts ) ) : $just_checked_in->entry_time;
+						$j_inv  = ! empty( $just_checked_in->reference_id ) ? strtok( $just_checked_in->reference_id, ' [' ) : 'NPMS-' . $just_checked_in->id;
+						$j_cat  = ucwords( str_replace( '-', ' - ', (string) $just_checked_in->parking_type ) );
+						$j_phn  = ifs_parking_veh_bn_num( $just_checked_in->driver_phone );
+						$j_fee  = $currency_symbol . ifs_parking_veh_bn_num( number_format( (float) $just_checked_in->fee, 2 ) );
+						?>
+						<button type="button"
+								id="ifs-print-latest-btn"
+								class="ifs-btn-print-slip-main"
+								data-inv="<?php echo esc_attr( $j_inv ); ?>"
+								data-veh="<?php echo esc_attr( $just_checked_in->vehicle_number ); ?>"
+								data-cat="<?php echo esc_attr( $j_cat ); ?>"
+								data-phone="<?php echo esc_attr( $j_phn ); ?>"
+								data-time="<?php echo esc_attr( $j_time ); ?>"
+								data-fee="<?php echo esc_attr( $j_fee ); ?>"
+								data-status="<?php esc_attr_e( 'পার্কিংয়ে সক্রিয়', 'ifs-parking' ); ?>">
+							<svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:currentColor;"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>
+							<?php esc_html_e( 'স্লিপ প্রিন্ট (১-ক্লিক)', 'ifs-parking' ); ?>
+						</button>
+					<?php endif; ?>
 				</div>
 			</form>
 		</div>
@@ -919,6 +1208,17 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			<div class="ifs-recent-header">
 				<div>
 					<h3 style="margin:0; font-size:17px; font-weight:700; color:#0f172a;"><?php esc_html_e( 'সাম্প্রতিক এন্ট্রি ও লাইভ স্ট্যাটাস', 'ifs-parking' ); ?></h3>
+					<div class="ifs-recent-submeta">
+						<?php
+						echo esc_html(
+							sprintf(
+								/* translators: %s: আজকের এন্ট্রি সংখ্যা */
+								__( 'আজকের এন্ট্রি: %sটি (আগে আজকের সব এন্ট্রি দেখানো হচ্ছে)', 'ifs-parking' ),
+								ifs_parking_veh_bn_num( $today_count )
+							)
+						);
+						?>
+					</div>
 				</div>
 
 				<div class="ifs-status-pills">
@@ -970,6 +1270,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 					<?php
 					foreach ( $recent_logs as $item ) :
 						$entry_ts   = strtotime( $item->entry_time );
+						$is_today   = ( $entry_ts && wp_date( 'Y-m-d', $entry_ts ) === $today_date );
 						$diff_secs  = $entry_ts ? max( 0, $now_ts - $entry_ts ) : 0;
 						$is_parked  = ( 'Parked' === $item->status );
 						$is_overdue = ( $is_parked && $diff_secs > 7200 );
@@ -978,18 +1279,24 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 						$live_fee   = $is_parked ? round( $slabs * $base_rate, 2 ) : $base_rate;
 						$dept_txt   = ! empty( $item->reference_id ) ? $item->reference_id : 'General';
 						$inv_no     = strtok( $dept_txt, ' [' );
-						$time_str   = $entry_ts ? ifs_parking_veh_bn_num( date_i18n( 'h:i A, j M', $entry_ts ) ) : $item->entry_time;
+						$time_str   = $entry_ts ? ifs_parking_veh_bn_num( date_i18n( 'j M, Y - h:i A', $entry_ts ) ) : $item->entry_time;
+						$time_short = $entry_ts ? ifs_parking_veh_bn_num( date_i18n( 'h:i A, j M', $entry_ts ) ) : $item->entry_time;
 						$cat_clean  = ucwords( str_replace( '-', ' - ', (string) $item->parking_type ) );
+						$st_label   = $is_overdue ? __( 'ওভারডিউ (২+ ঘণ্টা)', 'ifs-parking' ) : ( $is_parked ? __( 'পার্কিংয়ে সক্রিয়', 'ifs-parking' ) : __( 'রিলিজ সম্পন্ন', 'ifs-parking' ) );
 						?>
 						<div class="ifs-recent-item <?php echo $is_overdue ? 'is-overdue-card' : ''; ?>"
 							 data-parked="<?php echo $is_parked ? '1' : '0'; ?>"
-							 data-overdue="<?php echo $is_overdue ? '1' : '0'; ?>">
+							 data-overdue="<?php echo $is_overdue ? '1' : '0'; ?>"
+							 data-today="<?php echo $is_today ? '1' : '0'; ?>">
 							<div>
 								<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
 									<strong style="font-size:16px; color:#0f172a;"><?php echo esc_html( $item->vehicle_number ); ?></strong>
 									<span style="font-size:12px; font-weight:700; padding:2px 9px; border-radius:6px; background:#e0f2fe; color:#0369a1;">
 										<?php echo esc_html( $cat_clean ); ?>
 									</span>
+									<?php if ( $is_today ) : ?>
+										<span class="ifs-today-tag"><?php esc_html_e( 'আজকের', 'ifs-parking' ); ?></span>
+									<?php endif; ?>
 									<?php if ( $is_overdue ) : ?>
 										<span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:99px; background:#fef3c7; color:#b45309;">
 											<?php esc_html_e( 'ওভারডিউ (২+ ঘণ্টা)', 'ifs-parking' ); ?>
@@ -1001,7 +1308,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 									<?php endif; ?>
 								</div>
 								<div style="font-size:13px; color:#475569; margin-top:5px;">
-									<?php esc_html_e( 'প্রবেশ:', 'ifs-parking' ); ?> <strong><?php echo esc_html( $time_str ); ?></strong>
+									<?php esc_html_e( 'প্রবেশ:', 'ifs-parking' ); ?> <strong><?php echo esc_html( $time_short ); ?></strong>
 									<?php if ( ! empty( $item->driver_phone ) ) : ?>
 										| <?php esc_html_e( 'ফোন:', 'ifs-parking' ); ?> <strong><?php echo esc_html( ifs_parking_veh_bn_num( $item->driver_phone ) ); ?></strong>
 									<?php endif; ?>
@@ -1019,7 +1326,8 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 										data-cat="<?php echo esc_attr( $cat_clean ); ?>"
 										data-phone="<?php echo esc_attr( ifs_parking_veh_bn_num( $item->driver_phone ) ); ?>"
 										data-time="<?php echo esc_attr( $time_str ); ?>"
-										data-fee="<?php echo esc_attr( $currency_symbol . ifs_parking_veh_bn_num( number_format( $live_fee, 2 ) ) ); ?>">
+										data-fee="<?php echo esc_attr( $currency_symbol . ifs_parking_veh_bn_num( number_format( $live_fee, 2 ) ) ); ?>"
+										data-status="<?php echo esc_attr( $st_label ); ?>">
 									<?php esc_html_e( 'প্রিন্ট', 'ifs-parking' ); ?>
 								</button>
 
@@ -1040,28 +1348,65 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 					<p style="text-align:center; color:#64748b; padding:24px 0;"><?php esc_html_e( 'এখনও কোনো গাড়ি এন্ট্রি হয়নি।', 'ifs-parking' ); ?></p>
 				<?php endif; ?>
 			</div>
+
+			<!-- প্যাজিনেশন বার (আজকের এন্ট্রি শেষ হলে বা মোট এন্ট্রি পেজ সাইজের বেশি হলে দেখাবে) -->
+			<div class="ifs-pagination-bar" id="ifs-recent-pagination-bar">
+				<div class="ifs-pagination-info" id="ifs-pagination-info"></div>
+				<div class="ifs-pagination-buttons" id="ifs-pagination-buttons"></div>
+			</div>
 		</div>
 	</div>
 
-	<!-- ১-ক্লিক থার্মাল প্রিন্ট রসিদ টেমপ্লেট -->
+	<!-- প্রফেশনাল পার্কিং রসিদ / টোকেন টেমপ্লেট -->
 	<div id="ifs-instant-print-sheet">
-		<div style="text-align:center; border-bottom:1px dashed #000; padding-bottom:8px; margin-bottom:8px;">
-			<strong style="font-size:16px; display:block;"><?php echo esc_html( $site_title ); ?></strong>
-			<span style="font-size:12px;"><?php esc_html_e( 'হেল্পলাইন:', 'ifs-parking' ); ?> <?php echo esc_html( ifs_parking_veh_bn_num( $system_phone ) ); ?></span><br>
-			<strong style="font-size:12px;"><?php esc_html_e( 'পার্কিং টোকেন / রসিদ', 'ifs-parking' ); ?></strong>
+		<div class="ifs-slip-brand-box">
+			<span class="ifs-slip-brand-name"><?php echo esc_html( $site_title ); ?></span>
+			<span class="ifs-slip-helpline"><?php esc_html_e( 'হেল্পলাইন:', 'ifs-parking' ); ?> <?php echo esc_html( ifs_parking_veh_bn_num( $system_phone ) ); ?></span>
+			<span class="ifs-slip-doc-badge"><?php esc_html_e( 'পার্কিং এন্ট্রি টোকেন ও বিলিং স্লিপ', 'ifs-parking' ); ?></span>
 		</div>
-		<div style="line-height:1.7;">
-			<div><?php esc_html_e( 'স্লিপ নং:', 'ifs-parking' ); ?> <strong id="sp-inv">-</strong></div>
-			<div><?php esc_html_e( 'গাড়ি নম্বর:', 'ifs-parking' ); ?> <strong id="sp-veh" style="font-size:15px;">-</strong></div>
-			<div><?php esc_html_e( 'ধরণ:', 'ifs-parking' ); ?> <strong id="sp-cat">-</strong></div>
-			<div><?php esc_html_e( 'প্রবেশের সময়:', 'ifs-parking' ); ?> <strong id="sp-time">-</strong></div>
-			<div id="sp-phone-row" style="display:none;"><?php esc_html_e( 'মোবাইল:', 'ifs-parking' ); ?> <strong id="sp-phone">-</strong></div>
-			<div style="border-top:1px dashed #000; margin-top:6px; padding-top:6px; font-size:14px;">
-				<?php esc_html_e( 'নির্ধারিত ফি (প্রতি ২ ঘণ্টা):', 'ifs-parking' ); ?> <strong id="sp-fee">-</strong>
-			</div>
+
+		<div class="ifs-slip-plate-hero">
+			<span class="ifs-slip-plate-label"><?php esc_html_e( 'গাড়ির রেজিস্ট্রেশন নম্বর', 'ifs-parking' ); ?></span>
+			<span class="ifs-slip-plate-value" id="sp-veh">-</span>
 		</div>
-		<div style="text-align:center; border-top:1px dashed #000; margin-top:10px; padding-top:6px; font-size:11px;">
-			<?php esc_html_e( 'ধন্যবাদ! টোকেনটি সংরক্ষণ করুন।', 'ifs-parking' ); ?>
+
+		<table class="ifs-slip-meta-table">
+			<tbody>
+				<tr>
+					<td class="ifs-slip-k"><?php esc_html_e( 'টোকেন / স্লিপ নং', 'ifs-parking' ); ?></td>
+					<td class="ifs-slip-v" id="sp-inv">-</td>
+				</tr>
+				<tr>
+					<td class="ifs-slip-k"><?php esc_html_e( 'গাড়ির ধরণ / ক্যাটাগরি', 'ifs-parking' ); ?></td>
+					<td class="ifs-slip-v" id="sp-cat">-</td>
+				</tr>
+				<tr>
+					<td class="ifs-slip-k"><?php esc_html_e( 'প্রবেশের সময়', 'ifs-parking' ); ?></td>
+					<td class="ifs-slip-v" id="sp-time">-</td>
+				</tr>
+				<tr>
+					<td class="ifs-slip-k"><?php esc_html_e( 'বর্তমান অবস্থা', 'ifs-parking' ); ?></td>
+					<td class="ifs-slip-v" id="sp-status">-</td>
+				</tr>
+				<tr id="sp-phone-row" style="display:none;">
+					<td class="ifs-slip-k"><?php esc_html_e( 'মোবাইল নম্বর', 'ifs-parking' ); ?></td>
+					<td class="ifs-slip-v" id="sp-phone">-</td>
+				</tr>
+			</tbody>
+		</table>
+
+		<div class="ifs-slip-fee-box">
+			<span class="ifs-slip-fee-title"><?php esc_html_e( 'নির্ধারিত / চলতি ফি', 'ifs-parking' ); ?></span>
+			<span class="ifs-slip-fee-amount" id="sp-fee">-</span>
+		</div>
+
+		<div class="ifs-slip-note">
+			<?php esc_html_e( 'বিঃদ্রঃ প্রতি ২ ঘণ্টা স্ল্যাব অনুযায়ী পার্কিং চার্জ গণনা করা হয়। গাড়ি বের করার সময় স্লিপটি প্রদর্শন করুন।', 'ifs-parking' ); ?>
+		</div>
+
+		<div class="ifs-slip-footer">
+			<strong><?php esc_html_e( 'নিরাপদ যাত্রা কামনা করছি!', 'ifs-parking' ); ?></strong><br>
+			<span><?php echo esc_html( $site_title ); ?></span>
 		</div>
 	</div>
 
@@ -1069,16 +1414,22 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 	document.addEventListener('DOMContentLoaded', function() {
 		var categoriesData = <?php echo wp_json_encode( $all_categories ); ?>;
 		var currencySymbol = <?php echo wp_json_encode( $currency_symbol ); ?>;
+		var i18nText       = {
+			prev: <?php echo wp_json_encode( __( 'আগে', 'ifs-parking' ) ); ?>,
+			next: <?php echo wp_json_encode( __( 'পরে', 'ifs-parking' ) ); ?>,
+			pageOf: <?php echo wp_json_encode( __( 'পৃষ্ঠা %1$s / %2$s (মোট %3$sটি)', 'ifs-parking' ) ); ?>,
+			activeStatus: <?php echo wp_json_encode( __( 'পার্কিংয়ে সক্রিয়', 'ifs-parking' ) ); ?>
+		};
 
 		// বিআরটিএ অটো সিরিজ বর্ণ ম্যাপিং
 		var brtaAutoLetterMap = {
+			'Bike': 'হ',
+			'Cycle': '',
 			'Car': 'গ',
+			'CNG': 'থ',
 			'Noah': 'চ',
 			'Hiace': 'চ',
-			'CNG': 'থ',
-			'Truck': 'ট',
-			'Bike': 'ল',
-			'Cycle': ''
+			'Truck': 'ট'
 		};
 
 		var fDiv           = document.getElementById('f-div');
@@ -1160,26 +1511,26 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		if (fBrtaLetter) fBrtaLetter.addEventListener('change', updateLivePlateBadge);
 		if (fNum) fNum.addEventListener('input', updateLivePlateBadge);
 
-		// ইনিশিয়াল লোডে BRTA বর্ণ ও রেট সেট করা
 		var initVeh = getSelectedVeh();
 		if (fBrtaLetter && Object.prototype.hasOwnProperty.call(brtaAutoLetterMap, initVeh)) {
 			fBrtaLetter.value = brtaAutoLetterMap[initVeh];
 		}
 		syncRateAndCategory();
 
-		// স্লিপ প্রিন্ট ফাংশন (১-ক্লিকে থার্মাল প্রিন্ট)
+		// প্রফেশনাল স্লিপ প্রিন্ট ফাংশন
 		function printSlipData(data) {
-			document.getElementById('sp-inv').textContent   = data.inv || '-';
-			document.getElementById('sp-veh').textContent   = data.veh || '-';
-			document.getElementById('sp-cat').textContent   = data.cat || '-';
-			document.getElementById('sp-time').textContent  = data.time || '-';
-			document.getElementById('sp-fee').textContent   = data.fee || '-';
+			document.getElementById('sp-inv').textContent    = data.inv || '-';
+			document.getElementById('sp-veh').textContent    = data.veh || '-';
+			document.getElementById('sp-cat').textContent    = data.cat || '-';
+			document.getElementById('sp-time').textContent   = data.time || '-';
+			document.getElementById('sp-status').textContent = data.status || i18nText.activeStatus;
+			document.getElementById('sp-fee').textContent    = data.fee || '-';
 
 			var phoneRow = document.getElementById('sp-phone-row');
 			var phoneVal = document.getElementById('sp-phone');
 			if (data.phone) {
 				phoneVal.textContent = data.phone;
-				phoneRow.style.display = 'block';
+				phoneRow.style.display = 'table-row';
 			} else {
 				phoneRow.style.display = 'none';
 			}
@@ -1194,7 +1545,8 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 					cat: this.getAttribute('data-cat'),
 					phone: this.getAttribute('data-phone'),
 					time: this.getAttribute('data-time'),
-					fee: this.getAttribute('data-fee')
+					fee: this.getAttribute('data-fee'),
+					status: this.getAttribute('data-status')
 				});
 			});
 		});
@@ -1202,10 +1554,15 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		var printLatestBtn = document.getElementById('ifs-print-latest-btn');
 		if (printLatestBtn) {
 			printLatestBtn.addEventListener('click', function() {
-				var firstSlipBtn = document.querySelector('.ifs-trigger-slip-print');
-				if (firstSlipBtn) {
-					firstSlipBtn.click();
-				}
+				printSlipData({
+					inv: this.getAttribute('data-inv'),
+					veh: this.getAttribute('data-veh'),
+					cat: this.getAttribute('data-cat'),
+					phone: this.getAttribute('data-phone'),
+					time: this.getAttribute('data-time'),
+					fee: this.getAttribute('data-fee'),
+					status: this.getAttribute('data-status')
+				});
 			});
 		}
 
@@ -1213,7 +1570,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		<?php if ( $just_checked_in ) : ?>
 			<?php
 			$j_ts   = strtotime( $just_checked_in->entry_time );
-			$j_time = $j_ts ? ifs_parking_veh_bn_num( date_i18n( 'h:i A, j M', $j_ts ) ) : $just_checked_in->entry_time;
+			$j_time = $j_ts ? ifs_parking_veh_bn_num( date_i18n( 'j M, Y - h:i A', $j_ts ) ) : $just_checked_in->entry_time;
 			$j_inv  = ! empty( $just_checked_in->reference_id ) ? strtok( $just_checked_in->reference_id, ' [' ) : 'NPMS-' . $just_checked_in->id;
 			?>
 			setTimeout(function() {
@@ -1223,18 +1580,88 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 					cat: <?php echo wp_json_encode( ucwords( str_replace( '-', ' - ', (string) $just_checked_in->parking_type ) ) ); ?>,
 					phone: <?php echo wp_json_encode( ifs_parking_veh_bn_num( $just_checked_in->driver_phone ) ); ?>,
 					time: <?php echo wp_json_encode( $j_time ); ?>,
-					fee: <?php echo wp_json_encode( $currency_symbol . ifs_parking_veh_bn_num( number_format( (float) $just_checked_in->fee, 2 ) ) ); ?>
+					fee: <?php echo wp_json_encode( $currency_symbol . ifs_parking_veh_bn_num( number_format( (float) $just_checked_in->fee, 2 ) ) ); ?>,
+					status: <?php echo wp_json_encode( __( 'পার্কিংয়ে সক্রিয়', 'ifs-parking' ) ); ?>
 				});
 			}, 300);
 		<?php endif; ?>
 
-		// রিসেন্ট লিস্ট ইনস্ট্যান্ট ফিল্টার (Parked / Overdue / All) ও সার্চ
-		var currentFilter = 'parked';
-		var searchInput   = document.getElementById('ifs-recent-search');
+		// আজকের সব এন্ট্রি আগে দেখানো + প্যাজিনেশন সিস্টেম
+		var currentFilter  = 'parked';
+		var currentPage    = 1;
+		var pageSize       = 10;
+		var searchInput    = document.getElementById('ifs-recent-search');
+		var paginationBar  = document.getElementById('ifs-recent-pagination-bar');
+		var paginationInfo = document.getElementById('ifs-pagination-info');
+		var paginationBtns = document.getElementById('ifs-pagination-buttons');
 
-		function filterRecentCards() {
+		function renderPaginationControls(totalItems, totalPages) {
+			if (!paginationBar || !paginationInfo || !paginationBtns) return;
+
+			if (totalPages <= 1) {
+				paginationBar.style.display = 'none';
+				paginationBtns.innerHTML = '';
+				return;
+			}
+
+			paginationBar.style.display = 'flex';
+			paginationInfo.textContent = i18nText.pageOf
+				.replace('%1$s', toBnDigits(currentPage))
+				.replace('%2$s', toBnDigits(totalPages))
+				.replace('%3$s', toBnDigits(totalItems));
+
+			paginationBtns.innerHTML = '';
+
+			var prevBtn = document.createElement('button');
+			prevBtn.type = 'button';
+			prevBtn.className = 'ifs-page-btn';
+			prevBtn.textContent = i18nText.prev;
+			prevBtn.disabled = (currentPage <= 1);
+			prevBtn.addEventListener('click', function() {
+				if (currentPage > 1) {
+					currentPage--;
+					filterRecentCards(false);
+				}
+			});
+			paginationBtns.appendChild(prevBtn);
+
+			for (var p = 1; p <= totalPages; p++) {
+				(function(pageNum) {
+					var numBtn = document.createElement('button');
+					numBtn.type = 'button';
+					numBtn.className = 'ifs-page-btn' + (pageNum === currentPage ? ' is-current' : '');
+					numBtn.textContent = toBnDigits(pageNum);
+					numBtn.addEventListener('click', function() {
+						currentPage = pageNum;
+						filterRecentCards(false);
+					});
+					paginationBtns.appendChild(numBtn);
+				})(p);
+			}
+
+			var nextBtn = document.createElement('button');
+			nextBtn.type = 'button';
+			nextBtn.className = 'ifs-page-btn';
+			nextBtn.textContent = i18nText.next;
+			nextBtn.disabled = (currentPage >= totalPages);
+			nextBtn.addEventListener('click', function() {
+				if (currentPage < totalPages) {
+					currentPage++;
+					filterRecentCards(false);
+				}
+			});
+			paginationBtns.appendChild(nextBtn);
+		}
+
+		function filterRecentCards(resetPage) {
+			if (resetPage) {
+				currentPage = 1;
+			}
+
 			var q = searchInput ? searchInput.value.toLowerCase().trim() : '';
-			document.querySelectorAll('.ifs-recent-item').forEach(function(card) {
+			var allCards = Array.prototype.slice.call(document.querySelectorAll('.ifs-recent-item'));
+
+			var matchingCards = allCards.filter(function(card) {
 				var isParked  = card.getAttribute('data-parked') === '1';
 				var isOverdue = card.getAttribute('data-overdue') === '1';
 				var matchText = (q === '' || card.textContent.toLowerCase().indexOf(q) !== -1);
@@ -1243,8 +1670,49 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 				if (currentFilter === 'parked') matchTab = isParked;
 				if (currentFilter === 'overdue') matchTab = isOverdue;
 
-				card.style.display = (matchText && matchTab) ? 'flex' : 'none';
+				return matchText && matchTab;
 			});
+
+			matchingCards.sort(function(a, b) {
+				var aToday = a.getAttribute('data-today') === '1' ? 1 : 0;
+				var bToday = b.getAttribute('data-today') === '1' ? 1 : 0;
+				return bToday - aToday;
+			});
+
+			var todayMatchingCount = matchingCards.filter(function(c) {
+				return c.getAttribute('data-today') === '1';
+			}).length;
+
+			var firstPageLimit = Math.max(pageSize, todayMatchingCount);
+			var totalMatching  = matchingCards.length;
+
+			var totalPages = 1;
+			if (totalMatching > firstPageLimit) {
+				totalPages = 1 + Math.ceil((totalMatching - firstPageLimit) / pageSize);
+			}
+
+			if (currentPage > totalPages) {
+				currentPage = totalPages;
+			}
+
+			var startIdx = 0;
+			var endIdx   = firstPageLimit;
+			if (currentPage > 1) {
+				startIdx = firstPageLimit + ((currentPage - 2) * pageSize);
+				endIdx   = startIdx + pageSize;
+			}
+
+			allCards.forEach(function(card) {
+				card.style.display = 'none';
+			});
+
+			matchingCards.forEach(function(card, idx) {
+				if (idx >= startIdx && idx < endIdx) {
+					card.style.display = 'flex';
+				}
+			});
+
+			renderPaginationControls(totalMatching, totalPages);
 		}
 
 		document.querySelectorAll('.ifs-spill').forEach(function(pill) {
@@ -1257,14 +1725,17 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 				else if (currentFilter === 'overdue') this.classList.add('is-active-overdue');
 				else this.classList.add('is-active-all');
 
-				filterRecentCards();
+				filterRecentCards(true);
 			});
 		});
 
 		if (searchInput) {
-			searchInput.addEventListener('input', filterRecentCards);
+			searchInput.addEventListener('input', function() {
+				filterRecentCards(true);
+			});
 		}
-		filterRecentCards();
+
+		filterRecentCards(true);
 	});
 	</script>
 	<?php

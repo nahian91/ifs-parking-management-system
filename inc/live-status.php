@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * ইংরেজি সংখ্যাকে বাংলা সংখ্যায় রূপান্তর করার হেল্পার ফাংশন।
+ * ইংরেজি সংখ্যাকে বাংলা সংখ্যায় রূপান্তর করার হেল্পার ফাংশন।
  *
  * @param string|int|float $number ইনপুট সংখ্যা বা স্ট্রিং।
  * @return string
@@ -82,7 +82,7 @@ function ifs_parking_render_live_status_page() {
 /**
  * লাইভ স্ট্যাটাস টেবিলের সারিগুলো (Rows) রেন্ডার করার হেল্পার ফাংশন।
  *
- * @param array  $active_parked   পার্ক করা গাড়ির তালিকা।
+ * @param array  $active_parked   পার্ক করা গাড়ির তালিকা।
  * @param string $currency_symbol কারেন্সি প্রতীক।
  * @return void
  */
@@ -102,11 +102,11 @@ function ifs_parking_render_live_table_rows( $active_parked, $currency_symbol = 
 			$entry_short = $entry_ts ? ifs_parking_live_bn_num( date_i18n( 'j M, h:i A', $entry_ts ) ) : $item->entry_time;
 			$entry_full  = $entry_ts ? ifs_parking_live_bn_num( date_i18n( 'j M, Y - h:i A', $entry_ts ) ) : $item->entry_time;
 			?>
-			<tr class="ifs-live-row" data-status="<?php echo $is_overdue ? 'overdue' : 'active'; ?>">
+			<tr class="ifs-live-row" data-log-id="<?php echo esc_attr( $item->id ); ?>" data-status="<?php echo $is_overdue ? 'overdue' : 'active'; ?>">
 				<td>
 					<strong class="ifs-veh-num"><?php echo esc_html( $item->vehicle_number ); ?></strong>
 					<?php if ( $is_overdue ) : ?>
-						<br><span style="display:inline-block;margin-top:3px;font-size:11px;font-weight:700;color:#b45309;background:#fef3c7;padding:1px 7px;border-radius:99px;">
+						<br><span class="ifs-overdue-badge" style="display:inline-block;margin-top:3px;font-size:11px;font-weight:700;color:#b45309;background:#fef3c7;padding:1px 7px;border-radius:99px;">
 							<?php esc_html_e( 'ওভারডিউ (২+ ঘণ্টা)', 'ifs-parking' ); ?>
 						</span>
 					<?php endif; ?>
@@ -144,7 +144,7 @@ function ifs_parking_render_live_table_rows( $active_parked, $currency_symbol = 
 						<span class="ifs-live-fee-badge">
 							<?php echo esc_html( $currency_symbol . ifs_parking_live_bn_num( number_format( $calc['fee'], 2 ) ) ); ?>
 						</span>
-						<small style="color:#64748b;font-weight:500;">
+						<small class="ifs-live-slab-badge" style="color:#64748b;font-weight:500;">
 							(<?php echo esc_html( ifs_parking_live_bn_num( $calc['slabs'] ) ); ?> <?php esc_html_e( 'স্ল্যাব', 'ifs-parking' ); ?>)
 						</small>
 					</div>
@@ -185,7 +185,7 @@ function ifs_parking_render_live_table_rows( $active_parked, $currency_symbol = 
 }
 
 /**
- * ব্যাকগ্রাউন্ড সাইলেন্ট রিফ্রেশের জন্য AJAX হ্যান্ডলার (কোনো পেজ ব্লিঙ্ক ছাড়া)।
+ * ব্যাকগ্রাউন্ড সাইলেন্ট রিফ্রেশের জন্য AJAX হ্যান্ডলার (কোনো পেজ ব্লিঙ্ক ছাড়া)।
  *
  * @return void
  */
@@ -232,6 +232,7 @@ function ifs_parking_ajax_fetch_live_status() {
 			'html'       => $rows_html,
 			'count_bn'   => ifs_parking_live_bn_num( count( $active_parked ) ),
 			'overdue_bn' => ifs_parking_live_bn_num( $overdue_count ),
+			'hash'       => md5( wp_json_encode( wp_list_pluck( $active_parked, 'id' ) ) . '|' . count( $active_parked ) . '|' . $overdue_count ),
 		)
 	);
 }
@@ -288,7 +289,7 @@ function ifs_parking_render_live_status_content() {
 			$log_item = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM `{$table_logs}` WHERE id = %d", $rel_id ) );
 
 			if ( $log_item && 'Parked' === $log_item->status ) {
-				// সার্ভার-সাইড থেকেও সঠিক ২-ঘণ্টা স্ল্যাব বিল হিসাব করা যাতে কোনো গরমিল না হয়।
+				// সার্ভার-সাইড থেকেও সঠিক ২-ঘণ্টা স্ল্যাব বিল হিসাব করা যাতে কোনো গরমিল না হয়।
 				$entry_ts       = strtotime( $log_item->entry_time );
 				$now_ts         = current_time( 'timestamp' );
 				$diff_secs      = $entry_ts ? max( 0, $now_ts - $entry_ts ) : 0;
@@ -324,7 +325,7 @@ function ifs_parking_render_live_status_content() {
 							<svg class="ifs-notice-svg" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
 							' . esc_html(
 								sprintf(
-									/* translators: 1: গাড়ির নম্বর, 2: মোট ফি */
+									/* translators: 1: গাড়ির নম্বর, 2: মোট ফি */
 									__( 'গাড়ি (%1$s) সফলভাবে রিলিজ সম্পন্ন হয়েছে! মোট বিল: %2$s', 'ifs-parking' ),
 									$log_item->vehicle_number,
 									$currency_symbol . ifs_parking_live_bn_num( number_format( $calculated_fee, 2 ) )
@@ -357,13 +358,14 @@ function ifs_parking_render_live_status_content() {
 		}
 	}
 	$total_parked = count( $active_parked );
+	$initial_hash = md5( wp_json_encode( wp_list_pluck( $active_parked, 'id' ) ) . '|' . $total_parked . '|' . $overdue_count );
 	?>
 	<style>
-		/* লাইভ স্ট্যাটাস জিরো-ব্লিঙ্ক স্মুথ টাইমার, ফিল্টার ট্যাব ও বাংলা টাইপোগ্রাফি */
+		/* লাইভ স্ট্যাটাস জিরো-ব্লিঙ্ক স্মুথ টাইমার, ফিল্টার ট্যাব ও সিস্টেম টাইপোগ্রাফি */
 		.ifs-live-status-wrapper {
 			margin: 10px 15px 20px 0;
 			box-sizing: border-box;
-			font-family: 'Hind Siliguri', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+			font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 		}
 		.ifs-live-banner {
 			display: flex;
@@ -402,6 +404,12 @@ function ifs_parking_render_live_status_content() {
 			background: #0284c7;
 			transform-origin: left center;
 			will-change: transform;
+		}
+		#ifs-live-tbody {
+			transition: none;
+		}
+		.ifs-live-row {
+			background: #ffffff;
 		}
 		/* ইনস্ট্যান্ট ফিল্টার পিলস (Active / Overdue) */
 		.ifs-filter-pills {
@@ -657,7 +665,7 @@ function ifs_parking_render_live_status_content() {
 							<th class="ifs-th-action"><?php esc_html_e( 'অ্যাকশন', 'ifs-parking' ); ?></th>
 						</tr>
 					</thead>
-					<tbody id="ifs-live-tbody">
+					<tbody id="ifs-live-tbody" data-list-hash="<?php echo esc_attr( $initial_hash ); ?>">
 						<?php ifs_parking_render_live_table_rows( $active_parked, $currency_symbol ); ?>
 					</tbody>
 				</table>
@@ -737,7 +745,7 @@ function ifs_parking_render_live_status_content() {
 		</div>
 	</div>
 
-	<!-- জিরো-ব্লিঙ্ক আল্ট্রা-স্মুথ ২-ঘণ্টা স্ল্যাব লাইভ কাউন্টার ও সাইলেন্ট রিফ্রেশ স্ক্রিপ্ট -->
+	<!-- জিরো-ব্লিঙ্ক আল্ট্রা-স্মুথ ২-ঘণ্টা স্ল্যাব লাইভ কাউন্টার ও স্মার্ট সাইলেন্ট রিফ্রেশ স্ক্রিপ্ট -->
 	<script>
 	document.addEventListener('DOMContentLoaded', function() {
 		var currency     = <?php echo wp_json_encode( $currency_symbol ); ?>;
@@ -773,7 +781,7 @@ function ifs_parking_render_live_status_content() {
 				   toBnDigits(padZero(secs)) + ' ' + i18nLabels.second;
 		}
 
-		// প্রতি ২ ঘণ্টা (৭২০০ সেকেন্ড) স্ল্যাব অনুযায়ী লাইভ ফি হিসাব
+		// প্রতি ২ ঘণ্টা (৭২০০ সেকেন্ড) স্ল্যাব অনুযায়ী লাইভ ফি হিসাব
 		function calculate2HrSlabFee(diffSecs, catRaw, rate) {
 			if (catRaw.indexOf('monthly') !== -1) {
 				return { slabs: 1, fee: rate };
@@ -793,13 +801,16 @@ function ifs_parking_render_live_status_content() {
 				var iso    = el.getAttribute('data-entry');
 				var row    = el.closest('tr');
 				var feeEl  = row ? row.querySelector('.ifs-live-fee-badge') : null;
+				var slabEl = row ? row.querySelector('.ifs-live-slab-badge') : null;
 				return {
 					el: el,
+					row: row,
 					feeEl: feeEl,
+					slabEl: slabEl,
 					entryMs: iso ? new Date(iso).getTime() : 0,
 					rate: parseFloat(el.getAttribute('data-rate')) || 0,
 					catRaw: (el.getAttribute('data-cat-raw') || 'hourly').toLowerCase(),
-					lastText: el.textContent,
+					lastText: '',
 					lastSlabs: -1
 				};
 			});
@@ -813,6 +824,14 @@ function ifs_parking_render_live_status_content() {
 		var progressEl          = document.getElementById('ifs-refresh-progress');
 		var lastCountdownSec    = -1;
 		var isFetching          = false;
+
+		function resetRefreshCycle() {
+			cycleStartPerf   = performance.now();
+			lastCountdownSec = -1;
+			if (progressEl) {
+				progressEl.style.transform = 'scaleX(1)';
+			}
+		}
 
 		function applyFilters() {
 			var searchInput = document.getElementById('ifs-search-input');
@@ -847,9 +866,35 @@ function ifs_parking_render_live_status_content() {
 			});
 		});
 
+		// স্মার্ট প্যাচিং: কোনো নতুন গাড়ি না এলে বা না গেলে পুরো টেবিল ব্লিঙ্ক করবে না
+		function patchLiveRowsSmartly(newHtml) {
+			var tbody = document.getElementById('ifs-live-tbody');
+			if (!tbody) return;
+
+			var tempBody = document.createElement('tbody');
+			tempBody.innerHTML = newHtml;
+
+			var newRows = Array.prototype.slice.call(tempBody.querySelectorAll('tr.ifs-live-row'));
+			var oldRows = Array.prototype.slice.call(tbody.querySelectorAll('tr.ifs-live-row'));
+
+			var newIds = newRows.map(function(r) { return r.getAttribute('data-log-id'); }).join(',');
+			var oldIds = oldRows.map(function(r) { return r.getAttribute('data-log-id'); }).join(',');
+
+			// গাড়ির তালিকায় বা ক্রমে কোনো পরিবর্তন না থাকলে DOM সম্পূর্ণ অক্ষত রাখুন (Zero Blink!)
+			if (newIds === oldIds && newRows.length === oldRows.length) {
+				return;
+			}
+
+			// নতুন বা পরিবর্তিত তালিকা হলে মসৃণভাবে আপডেট করুন
+			tbody.innerHTML = newHtml;
+			indexCounterNodes();
+			applyFilters();
+		}
+
 		function silentRefreshTable() {
 			if (isFetching) return;
 			isFetching = true;
+			resetRefreshCycle();
 
 			var formData = new FormData();
 			formData.append('action', 'ifs_parking_fetch_live_status');
@@ -866,25 +911,48 @@ function ifs_parking_render_live_status_content() {
 					var tbody     = document.getElementById('ifs-live-tbody');
 					var countEl   = document.getElementById('ifs-total-parked-count');
 					var overdueEl = document.getElementById('ifs-overdue-count');
-					if (tbody) {
-						tbody.innerHTML = response.data.html;
-						indexCounterNodes();
-						applyFilters();
+
+					var prevHash = tbody ? tbody.getAttribute('data-list-hash') : '';
+					var nextHash = response.data.hash || '';
+
+					if (countEl && countEl.textContent !== response.data.count_bn) {
+						countEl.textContent = response.data.count_bn;
 					}
-					if (countEl) countEl.textContent = response.data.count_bn;
-					if (overdueEl) overdueEl.textContent = response.data.overdue_bn;
+					if (overdueEl && overdueEl.textContent !== response.data.overdue_bn) {
+						overdueEl.textContent = response.data.overdue_bn;
+					}
+
+					if (nextHash !== prevHash) {
+						if (tbody) tbody.setAttribute('data-list-hash', nextHash);
+						patchLiveRowsSmartly(response.data.html);
+					}
 				}
 			})
 			.catch(function() {})
 			.finally(function() {
-				isFetching     = false;
-				cycleStartPerf = performance.now();
+				isFetching = false;
 			});
 		}
 
 		function smoothTicker(nowPerf) {
-			var nowEpoch = Date.now();
+			var nowEpoch   = Date.now();
+			var elapsedMs  = nowPerf - cycleStartPerf;
+			var remaining  = Math.max(0, REFRESH_DURATION_MS - elapsedMs);
+			var ratio      = remaining / REFRESH_DURATION_MS;
 
+			// 60fps স্মুথ প্রগ্রেস বার আপডেট
+			if (progressEl) {
+				progressEl.style.transform = 'scale3d(' + ratio.toFixed(5) + ', 1, 1)';
+			}
+
+			// অটো-রিফ্রেশ কাউন্টডাউন সেকেন্ড
+			var remainingSec = Math.ceil(remaining / 1000);
+			if (timerEl && remainingSec !== lastCountdownSec) {
+				lastCountdownSec = remainingSec;
+				timerEl.textContent = toBnDigits(padZero(remainingSec)) + ' ' + i18nLabels.second;
+			}
+
+			// প্রতিটি পার্ক করা গাড়ির লাইভ সময়কাল ও স্ল্যাব বিল
 			for (var i = 0; i < counterNodes.length; i++) {
 				var item = counterNodes[i];
 				if (item.entryMs > 0) {
@@ -896,13 +964,19 @@ function ifs_parking_render_live_status_content() {
 					}
 
 					var slabInfo = calculate2HrSlabFee(diffSecs, item.catRaw, item.rate);
-					if (item.feeEl && slabInfo.slabs !== item.lastSlabs) {
+					if (slabInfo.slabs !== item.lastSlabs) {
 						item.lastSlabs = slabInfo.slabs;
-						item.feeEl.textContent = currency + toBnDigits(slabInfo.fee.toFixed(2));
+						if (item.feeEl) {
+							item.feeEl.textContent = currency + toBnDigits(slabInfo.fee.toFixed(2));
+						}
+						if (item.slabEl) {
+							item.slabEl.textContent = '(' + toBnDigits(slabInfo.slabs) + ' ' + i18nLabels.slab + ')';
+						}
 					}
 				}
 			}
 
+			// রিলিজ মডালের লাইভ কাউন্টডাউন ও বিল
 			if (activeModalData) {
 				var modalDiffSecs = Math.max(0, Math.floor((nowEpoch - activeModalData.entryMs) / 1000));
 				var modalDurText  = formatDuration(modalDiffSecs);
@@ -911,28 +985,14 @@ function ifs_parking_render_live_status_content() {
 					var slabCalc   = calculate2HrSlabFee(modalDiffSecs, activeModalData.catRaw, activeModalData.rate);
 					var totalFeeEn = slabCalc.fee.toFixed(2);
 
-					document.getElementById('m-exit').textContent      = toBnDigits(new Date(nowEpoch).toLocaleString('bn-BD'));
-					document.getElementById('m-duration').textContent  = modalDurText + ' (' + toBnDigits(slabCalc.slabs) + ' ' + i18nLabels.slab + ')';
-					document.getElementById('m-total-fee').textContent = currency + toBnDigits(totalFeeEn);
+					document.getElementById('m-exit').textContent       = toBnDigits(new Date(nowEpoch).toLocaleString('bn-BD'));
+					document.getElementById('m-duration').textContent   = modalDurText + ' (' + toBnDigits(slabCalc.slabs) + ' ' + i18nLabels.slab + ')';
+					document.getElementById('m-total-fee').textContent  = currency + toBnDigits(totalFeeEn);
 					document.getElementById('ifs-form-final-fee').value = totalFeeEn;
 				}
 			}
 
-			var elapsedMs   = nowPerf - cycleStartPerf;
-			var remainingMs = Math.max(0, REFRESH_DURATION_MS - elapsedMs);
-
-			if (progressEl) {
-				var ratio = remainingMs / REFRESH_DURATION_MS;
-				progressEl.style.transform = 'scaleX(' + ratio.toFixed(4) + ')';
-			}
-
-			var remainingSec = Math.ceil(remainingMs / 1000);
-			if (timerEl && remainingSec !== lastCountdownSec) {
-				lastCountdownSec = remainingSec;
-				timerEl.textContent = toBnDigits(padZero(remainingSec)) + ' ' + i18nLabels.second;
-			}
-
-			if (remainingMs <= 0 && !isFetching) {
+			if (remaining <= 0 && !isFetching) {
 				silentRefreshTable();
 			}
 

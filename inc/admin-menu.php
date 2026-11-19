@@ -71,15 +71,6 @@ function ifs_parking_admin_menu() {
 
 	add_submenu_page(
 		'ifs-parking-vehicles',
-		__( 'মেম্বারশিপ', 'ifs-parking' ),
-		__( 'মেম্বারশিপ', 'ifs-parking' ),
-		$admin_cap,
-		'ifs-parking-memberships',
-		'ifs_parking_render_memberships_page'
-	);
-
-	add_submenu_page(
-		'ifs-parking-vehicles',
 		__( 'রিপোর্ট ও অ্যানালিটিক্স', 'ifs-parking' ),
 		__( 'রিপোর্ট', 'ifs-parking' ),
 		$admin_cap,
@@ -149,11 +140,6 @@ function ifs_parking_render_layout_wrapper( $content_callback ) {
 			'url'   => admin_url( 'admin.php?page=ifs-parking-categories' ),
 			'svg'   => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l-5.5 9h11z"/><circle cx="17.5" cy="17.5" r="4.5"/><path d="M3 13.5h8v8H3z"/></svg>',
 		),
-		'ifs-parking-memberships' => array(
-			'label' => __( 'মেম্বারশিপ', 'ifs-parking' ),
-			'url'   => admin_url( 'admin.php?page=ifs-parking-memberships' ),
-			'svg'   => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/></svg>',
-		),
 		'ifs-parking-reports'     => array(
 			'label' => __( 'রিপোর্ট', 'ifs-parking' ),
 			'url'   => admin_url( 'admin.php?page=ifs-parking-reports' ),
@@ -201,7 +187,7 @@ function ifs_parking_render_layout_wrapper( $content_callback ) {
 		</button>
 	</div>
 
-	<div class="ifs-app-layout" style="font-family: 'Hind Siliguri', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;">
+	<div class="ifs-app-layout" style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
 		<!-- কাস্টম সাইডবার -->
 		<aside class="ifs-sidebar-col" id="ifs-sidebar-element">
 			<div class="ifs-sidebar-header">
