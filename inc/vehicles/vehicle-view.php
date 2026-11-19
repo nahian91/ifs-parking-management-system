@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * ইংরেজি সংখ্যাকে বাংলা সংখ্যায় রূপান্তর করার হেল্পার ফাংশন।
+ * ইংরেজি সংখ্যাকে বাংলা সংখ্যায় রূপান্তর করার হেল্পার ফাংশন।
  *
  * @param string|int|float $number ইনপুট সংখ্যা বা স্ট্রিং।
  * @return string
@@ -24,6 +24,36 @@ function ifs_parking_view_bn_num( $number ) {
 	$bn_digits = array( '০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯' );
 
 	return str_replace( $en_digits, $bn_digits, (string) $number );
+}
+
+/**
+ * সেকেন্ডকে বাংলা "X ঘণ্টা Y মিনিট" ফরম্যাটে রূপান্তর করার হেল্পার।
+ *
+ * @param int $seconds মোট সেকেন্ড।
+ * @return string
+ */
+function ifs_parking_view_format_duration_bn( $seconds ) {
+	$secs  = max( 0, (int) $seconds );
+	$hours = (int) floor( $secs / 3600 );
+	$mins  = (int) floor( ( $secs % 3600 ) / 60 );
+
+	$parts = array();
+	if ( $hours > 0 ) {
+		$parts[] = sprintf(
+			/* translators: %s: ঘণ্টার সংখ্যা */
+			__( '%s ঘণ্টা', 'ifs-parking' ),
+			ifs_parking_view_bn_num( $hours )
+		);
+	}
+	if ( $mins > 0 || empty( $parts ) ) {
+		$parts[] = sprintf(
+			/* translators: %s: মিনিটের সংখ্যা */
+			__( '%s মিনিট', 'ifs-parking' ),
+			ifs_parking_view_bn_num( $mins )
+		);
+	}
+
+	return implode( ' ', $parts );
 }
 
 /**
@@ -51,33 +81,94 @@ function ifs_parking_render_vehicle_view( $table_logs, $log_id, $currency_symbol
 		return;
 	}
 
+	$bd_tz             = new DateTimeZone( 'Asia/Dhaka' );
+	$overdue_threshold = 7800; // ২ ঘণ্টা ১০ মিনিট (2 * 3600 + 10 * 60 = 7800 সেকেন্ড)।
+	$now_utc           = time();
+
 	$back_url    = admin_url( 'admin.php?page=ifs-parking-vehicles&tab=all_vehicles' );
 	$edit_url    = admin_url( 'admin.php?page=ifs-parking-vehicles&action=edit&id=' . $vehicle->id );
 	$invoice_num = ! empty( $vehicle->reference_id )
 		? strtok( $vehicle->reference_id, ' [' )
 		: 'NPMS-' . str_pad( (string) $vehicle->id, 4, '0', STR_PAD_LEFT );
 
+	// সিরিয়াল: বাইক -> কার -> সিএনজি -> সাইকেল -> নোয়াহ -> হাইয়েস -> ট্রাক
 	$veh_labels_bd = array(
+		'Bike'  => __( 'বাইক (Bike)', 'ifs-parking' ),
 		'Car'   => __( 'কার (Car)', 'ifs-parking' ),
+		'CNG'   => __( 'সিএনজি (CNG)', 'ifs-parking' ),
+		'Cycle' => __( 'সাইকেল (Cycle)', 'ifs-parking' ),
 		'Noah'  => __( 'নোয়াহ (Noah)', 'ifs-parking' ),
 		'Hiace' => __( 'হাইয়েস (Hiace)', 'ifs-parking' ),
-		'CNG'   => __( 'সিএনজি (CNG)', 'ifs-parking' ),
 		'Truck' => __( 'ট্রাক (Truck)', 'ifs-parking' ),
-		'Bike'  => __( 'বাইক (Bike)', 'ifs-parking' ),
-		'Cycle' => __( 'সাইকেল (Cycle)', 'ifs-parking' ),
 	);
 
-	$raw_type    = (string) $vehicle->parking_type;
-	$type_key    = false !== strpos( $raw_type, '-' ) ? trim( ucfirst( strtok( $raw_type, '-' ) ) ) : ucfirst( trim( $raw_type ) );
-	$type_label  = isset( $veh_labels_bd[ $type_key ] ) ? $veh_labels_bd[ $type_key ] : $type_key;
-	$entry_ts    = strtotime( $vehicle->entry_time );
-	$entry_label = $entry_ts ? ifs_parking_view_bn_num( date_i18n( 'j F, Y - h:i A', $entry_ts ) ) : $vehicle->entry_time;
+	$raw_type   = (string) $vehicle->parking_type;
+	$slug_lc    = strtolower( trim( $raw_type ) );
+	$type_key   = false !== strpos( $raw_type, '-' ) ? trim( ucfirst( strtok( $raw_type, '-' ) ) ) : ucfirst( trim( $raw_type ) );
+	$type_label = isset( $veh_labels_bd[ $type_key ] ) ? $veh_labels_bd[ $type_key ] : $type_key;
 
+	// ক্যাটাগরি রেট লোড।
+	$table_cats  = $wpdb->prefix . 'ifs_parking_categories';
+	$matched_cat = null;
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+	if ( '' !== $slug_lc && $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_cats ) ) === $table_cats ) {
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$matched_cat = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM `{$table_cats}` WHERE LOWER(category_slug) = %s ORDER BY id ASC LIMIT 1", $slug_lc ) );
+	}
+
+	$entry_ts    = 0;
+	$entry_label = $vehicle->entry_time;
+	if ( ! empty( $vehicle->entry_time ) ) {
+		try {
+			$dt_entry    = new DateTimeImmutable( $vehicle->entry_time, $bd_tz );
+			$entry_ts    = $dt_entry->getTimestamp();
+			$entry_label = ifs_parking_view_bn_num( wp_date( 'j F, Y - h:i A', $entry_ts, $bd_tz ) );
+		} catch ( Exception $e ) {
+			$entry_ts    = strtotime( $vehicle->entry_time ) ? (int) strtotime( $vehicle->entry_time ) : 0;
+			$entry_label = $vehicle->entry_time;
+		}
+	}
+
+	$exit_ts    = 0;
 	$exit_label = __( 'এখনও পার্কিংয়ে আছে', 'ifs-parking' );
 	if ( ! empty( $vehicle->exit_time ) && '0000-00-00 00:00:00' !== $vehicle->exit_time ) {
-		$exit_ts    = strtotime( $vehicle->exit_time );
-		$exit_label = $exit_ts ? ifs_parking_view_bn_num( date_i18n( 'j F, Y - h:i A', $exit_ts ) ) : $vehicle->exit_time;
+		try {
+			$dt_exit    = new DateTimeImmutable( $vehicle->exit_time, $bd_tz );
+			$exit_ts    = $dt_exit->getTimestamp();
+			$exit_label = ifs_parking_view_bn_num( wp_date( 'j F, Y - h:i A', $exit_ts, $bd_tz ) );
+		} catch ( Exception $e ) {
+			$exit_ts    = strtotime( $vehicle->exit_time ) ? (int) strtotime( $vehicle->exit_time ) : 0;
+			$exit_label = $vehicle->exit_time;
+		}
 	}
+
+	$is_parked  = ( 'Parked' === $vehicle->status );
+	$end_ts     = $is_parked ? $now_utc : ( $exit_ts ? $exit_ts : $now_utc );
+	$diff_secs  = $entry_ts ? max( 0, $end_ts - $entry_ts ) : 0;
+	$stay_label = ifs_parking_view_format_duration_bn( $diff_secs );
+	$is_overdue = ( $diff_secs > $overdue_threshold );
+	$ovd_label  = $is_overdue ? ifs_parking_view_format_duration_bn( $diff_secs - $overdue_threshold ) : __( 'নেই', 'ifs-parking' );
+
+	$base_rate = (float) $vehicle->fee;
+	$step_rate = ( $matched_cat && isset( $matched_cat->two_hour_rate ) && (float) $matched_cat->two_hour_rate > 0 )
+		? (float) $matched_cat->two_hour_rate
+		: ( ( $matched_cat && isset( $matched_cat->hourly_rate ) && (float) $matched_cat->hourly_rate > 0 ) ? (float) $matched_cat->hourly_rate : $base_rate );
+
+	if ( $is_parked ) {
+		if ( false !== strpos( $slug_lc, 'monthly' ) ) {
+			$total_fee = round( $base_rate, 2 );
+		} elseif ( false !== strpos( $slug_lc, 'daily' ) ) {
+			$total_fee = round( max( 1, (int) ceil( $diff_secs / 86400 ) ) * $base_rate, 2 );
+		} else {
+			$tier      = ( $diff_secs <= $overdue_threshold ) ? 1 : (int) ceil( $diff_secs / $overdue_threshold );
+			$total_fee = round( $tier * max( 0.00, $step_rate ), 2 );
+		}
+	} else {
+		$total_fee = round( $base_rate, 2 );
+	}
+
+	$base_step_fee = ( $step_rate > 0 ) ? round( $step_rate, 2 ) : $total_fee;
+	$overdue_fee   = $is_overdue ? max( 0.00, round( $total_fee - $base_step_fee, 2 ) ) : 0.00;
 	?>
 	<style>
 		/* গাড়ির বিস্তারিত ভিউ রেসপনসিভনেস ও প্রমিত বাংলা টাইপোগ্রাফি */
@@ -213,18 +304,36 @@ function ifs_parking_render_vehicle_view( $table_logs, $log_id, $currency_symbol
 			</div>
 
 			<div class="ifs-view-info-box">
-				<strong><?php esc_html_e( 'নির্ধারিত / পরিশোধিত ফি:', 'ifs-parking' ); ?></strong><br>
-				<span style="color: #10b981; font-weight: 700; font-size: 15px;">
-					<?php echo esc_html( $currency_symbol . ifs_parking_view_bn_num( number_format_i18n( (float) $vehicle->fee, 2 ) ) ); ?>
+				<strong><?php esc_html_e( 'প্রথম ধাপ (২.১০ ঘণ্টা) ফি:', 'ifs-parking' ); ?></strong><br>
+				<span style="color: #0369a1; font-weight: 700; font-size: 15px;">
+					<?php echo esc_html( $currency_symbol . ifs_parking_view_bn_num( number_format_i18n( $base_step_fee, 2 ) ) ); ?>
+				</span>
+			</div>
+
+			<div class="ifs-view-info-box">
+				<strong><?php esc_html_e( 'ওভারডিউ ফি:', 'ifs-parking' ); ?></strong><br>
+				<span style="color: <?php echo $overdue_fee > 0 ? '#b45309' : '#475569'; ?>; font-weight: 700; font-size: 15px;">
+					<?php echo esc_html( $currency_symbol . ifs_parking_view_bn_num( number_format_i18n( $overdue_fee, 2 ) ) ); ?>
+				</span>
+			</div>
+
+			<div class="ifs-view-info-box">
+				<strong><?php esc_html_e( 'সর্বমোট বিল:', 'ifs-parking' ); ?></strong><br>
+				<span style="color: #059669; font-weight: 800; font-size: 16px;">
+					<?php echo esc_html( $currency_symbol . ifs_parking_view_bn_num( number_format_i18n( $total_fee, 2 ) ) ); ?>
 				</span>
 			</div>
 
 			<div class="ifs-view-info-box">
 				<strong><?php esc_html_e( 'পার্কিং স্ট্যাটাস:', 'ifs-parking' ); ?></strong><br>
-				<?php if ( 'Parked' === $vehicle->status ) : ?>
-					<span style="color: #d97706; font-weight: 700;"><?php esc_html_e( 'পার্ক করা আছে', 'ifs-parking' ); ?></span>
+				<?php if ( $is_parked ) : ?>
+					<span style="color: <?php echo $is_overdue ? '#b45309' : '#d97706'; ?>; font-weight: 700;">
+						<?php echo esc_html( $is_overdue ? __( 'ওভারডিউ (পার্ক করা আছে)', 'ifs-parking' ) : __( 'পার্ক করা আছে', 'ifs-parking' ) ); ?>
+					</span>
 				<?php else : ?>
-					<span style="color: #059669; font-weight: 700;"><?php esc_html_e( 'বের হয়ে গেছে (সম্পন্ন)', 'ifs-parking' ); ?></span>
+					<span style="color: #059669; font-weight: 700;">
+						<?php echo esc_html( $is_overdue ? __( 'ওভারডিউ (বের হয়ে গেছে)', 'ifs-parking' ) : __( 'বের হয়ে গেছে (সম্পন্ন)', 'ifs-parking' ) ); ?>
+					</span>
 				<?php endif; ?>
 			</div>
 
@@ -246,6 +355,18 @@ function ifs_parking_render_vehicle_view( $table_logs, $log_id, $currency_symbol
 			<div class="ifs-view-info-box">
 				<strong><?php esc_html_e( 'বের হওয়ার সময়:', 'ifs-parking' ); ?></strong><br>
 				<span><?php echo esc_html( $exit_label ); ?></span>
+			</div>
+
+			<div class="ifs-view-info-box">
+				<strong><?php esc_html_e( 'মোট অবস্থান সময়:', 'ifs-parking' ); ?></strong><br>
+				<span><?php echo esc_html( $stay_label ); ?></span>
+			</div>
+
+			<div class="ifs-view-info-box">
+				<strong><?php esc_html_e( 'ওভারডিউ সময়:', 'ifs-parking' ); ?></strong><br>
+				<span style="color: <?php echo $is_overdue ? '#b45309' : '#475569'; ?>; font-weight: <?php echo $is_overdue ? '700' : '400'; ?>;">
+					<?php echo esc_html( $ovd_label ); ?>
+				</span>
 			</div>
 
 			<?php if ( ! empty( $vehicle->slot_number ) || ! empty( $vehicle->membership_expiry ) ) : ?>
