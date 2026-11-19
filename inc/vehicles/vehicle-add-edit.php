@@ -146,7 +146,7 @@ function ifs_parking_save_vehicle_entry( $table_logs, $table_cats ) {
 		}
 	}
 
-	$parking_type = $selected_cat ? $selected_cat->category_slug : 'car-general';
+	$parking_type = $selected_cat ? $selected_cat->category_slug : 'bike-general';
 	$driver_phone = isset( $_POST['driver_phone'] ) ? sanitize_text_field( wp_unslash( $_POST['driver_phone'] ) ) : '';
 	$gym_emp_id   = isset( $_POST['gym_employee_id'] ) ? sanitize_text_field( wp_unslash( $_POST['gym_employee_id'] ) ) : '';
 
@@ -319,6 +319,57 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		}
 	}
 
+	// ৩. একই পেজ থেকে এন্ট্রি ডিলিট হ্যান্ডলার।
+	if (
+		isset( $_POST['ifs_quick_delete_nonce'] ) &&
+		wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['ifs_quick_delete_nonce'] ) ), 'ifs_quick_delete' ) &&
+		current_user_can( 'manage_options' )
+	) {
+		$delete_id = isset( $_POST['delete_log_id'] ) ? absint( $_POST['delete_log_id'] ) : 0;
+		if ( $delete_id > 0 ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$del_item = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM `{$table_logs}` WHERE id = %d", $delete_id ) );
+
+			if ( $del_item ) {
+				// যদি স্লট বরাদ্দ থাকে এবং গাড়িটি পার্কড অবস্থায় থাকে তবে স্লট খালি করা।
+				$table_slots = $wpdb->prefix . 'ifs_parking_slots';
+				if ( 'Parked' === $del_item->status && ! empty( $del_item->slot_number ) ) {
+					// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+					$wpdb->update(
+						$table_slots,
+						array( 'is_occupied' => 0 ),
+						array( 'slot_name' => $del_item->slot_number ),
+						array( '%d' ),
+						array( '%s' )
+					);
+				}
+
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+				$deleted = $wpdb->delete(
+					$table_logs,
+					array( 'id' => $delete_id ),
+					array( '%d' )
+				);
+
+				if ( false !== $deleted ) {
+					echo '<div class="ifs-toast-banner ifs-toast-error" role="status">
+							<span class="ifs-toast-icon">&#10003;</span>
+							<div>
+								<strong>' . esc_html__( 'এন্ট্রি মুছে ফেলা হয়েছে!', 'ifs-parking' ) . '</strong>
+								<span>' . esc_html(
+									sprintf(
+										/* translators: %s: গাড়ির নম্বর */
+										__( 'গাড়ি (%s)-এর রেকর্ড স্থায়ীভাবে ডিলিট করা হয়েছে।', 'ifs-parking' ),
+										$del_item->vehicle_number
+									)
+								) . '</span>
+							</div>
+						  </div>';
+				}
+			}
+		}
+	}
+
 	// ক্যাটাগরি ও ডিপার্টমেন্ট লোড।
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	$all_categories = $wpdb->get_results( "SELECT * FROM `{$table_cats}` ORDER BY id ASC" );
@@ -382,15 +433,34 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		}
 	}
 
+	// সিরিয়াল: বাইক -> কার -> সিএনজি -> সাইকেল -> নোয়াহ -> হাইয়েস -> ট্রাক
 	$veh_labels_bd = array(
+		'Bike'  => __( 'বাইক', 'ifs-parking' ),
 		'Car'   => __( 'কার', 'ifs-parking' ),
+		'CNG'   => __( 'সিএনজি', 'ifs-parking' ),
+		'Cycle' => __( 'সাইকেল', 'ifs-parking' ),
 		'Noah'  => __( 'নোয়াহ', 'ifs-parking' ),
 		'Hiace' => __( 'হাইয়েস', 'ifs-parking' ),
-		'CNG'   => __( 'সিএনজি', 'ifs-parking' ),
 		'Truck' => __( 'ট্রাক', 'ifs-parking' ),
-		'Bike'  => __( 'বাইক', 'ifs-parking' ),
-		'Cycle' => __( 'সাইকেল', 'ifs-parking' ),
 	);
+
+	$raw_unique_vehs = ! empty( $all_categories ) ? array_unique( wp_list_pluck( $all_categories, 'vehicle_type' ) ) : array_keys( $veh_labels_bd );
+	$preferred_order = array_keys( $veh_labels_bd );
+	$ordered_vehs    = array();
+
+	foreach ( $preferred_order as $p_veh ) {
+		if ( in_array( $p_veh, $raw_unique_vehs, true ) ) {
+			$ordered_vehs[] = $p_veh;
+		}
+	}
+	foreach ( $raw_unique_vehs as $r_veh ) {
+		if ( ! in_array( $r_veh, $ordered_vehs, true ) ) {
+			$ordered_vehs[] = $r_veh;
+		}
+	}
+	if ( empty( $ordered_vehs ) ) {
+		$ordered_vehs = $preferred_order;
+	}
 
 	// ক্রম: আগে Bike, তারপর Car, তারপর CNG, এরপর Others।
 	$brta_letters_bd = array(
@@ -427,7 +497,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		'ময়মনসিংহ মেট্রো' => __( 'ময়মনসিংহ মেট্রো', 'ifs-parking' ),
 		'সিলেট'            => __( 'সিলেট (জেলা)', 'ifs-parking' ),
 		'অন্যান্য'         => __( 'অন্যান্য জেলা', 'ifs-parking' ),
-		''  => __( 'প্রযোজ্য নয়', 'ifs-parking' ),
+		''                 => __( 'প্রযোজ্য নয়', 'ifs-parking' ),
 	);
 
 	$allowed_svg = array(
@@ -892,6 +962,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			display: flex;
 			align-items: center;
 			gap: 8px;
+			flex-wrap: wrap;
 		}
 		.ifs-btn-mini-print {
 			height: 40px;
@@ -934,6 +1005,27 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		}
 		.ifs-btn-mini-checkout:active {
 			transform: scale(0.98);
+		}
+		.ifs-btn-mini-delete {
+			height: 40px;
+			padding: 0 13px;
+			border-radius: 10px;
+			border: 1.5px solid #fecaca;
+			background: #fef2f2;
+			color: #dc2626;
+			font-weight: 700;
+			font-size: 13px;
+			cursor: pointer;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			gap: 4px;
+			transition: background 0.15s ease, border-color 0.15s ease;
+			-webkit-tap-highlight-color: transparent;
+		}
+		.ifs-btn-mini-delete:hover {
+			background: #fee2e2;
+			border-color: #fca5a5;
 		}
 
 		/* প্যাজিনেশন কন্ট্রোল */
@@ -1196,7 +1288,8 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 				width: 100%;
 			}
 			.ifs-btn-mini-print,
-			.ifs-btn-mini-checkout {
+			.ifs-btn-mini-checkout,
+			.ifs-btn-mini-delete {
 				flex: 1;
 				height: 44px;
 			}
@@ -1220,7 +1313,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 					<?php esc_html_e( 'নতুন গাড়ি চেক-ইন', 'ifs-parking' ); ?>
 				</h2>
 				<div class="ifs-live-plate-badge" id="ifs-live-plate-preview">
-					<?php esc_html_e( 'হ', 'ifs-parking' ); ?>
+					<?php esc_html_e( 'সিলেট মেট্রো হ', 'ifs-parking' ); ?>
 				</div>
 			</div>
 
@@ -1231,11 +1324,10 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 				<input type="hidden" name="category_id" id="ifs-hidden-cat-id" value="">
 				<input type="hidden" name="selected_rate_type" id="ifs-hidden-rate-type" value="hourly">
 
-				<!-- কুইক গাড়ির বাটন (আইকনসহ) -->
+				<!-- কুইক গাড়ির বাটন (সিরিয়াল: বাইক, কার, সিএনজি, সাইকেল, নোয়াহ, হাইয়েস, ট্রাক) -->
 				<div class="ifs-quick-veh-grid">
 					<?php
-					$unique_vehs = ! empty( $all_categories ) ? array_unique( wp_list_pluck( $all_categories, 'vehicle_type' ) ) : array( 'Car', 'Noah', 'Bike', 'CNG', 'Truck' );
-					foreach ( $unique_vehs as $v_idx => $v_item ) :
+					foreach ( $ordered_vehs as $v_idx => $v_item ) :
 						$v_lbl = isset( $veh_labels_bd[ $v_item ] ) ? $veh_labels_bd[ $v_item ] : $v_item;
 						$v_svg = ifs_parking_get_quick_veh_svg( $v_item );
 						?>
@@ -1490,6 +1582,17 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 										</button>
 									</form>
 								<?php endif; ?>
+
+								<?php if ( current_user_can( 'manage_options' ) ) : ?>
+									<form method="post" action="" style="margin:0;">
+										<?php wp_nonce_field( 'ifs_quick_delete', 'ifs_quick_delete_nonce' ); ?>
+										<input type="hidden" name="delete_log_id" value="<?php echo esc_attr( $item->id ); ?>">
+										<button type="submit" class="ifs-btn-mini-delete"
+												onclick="return confirm('<?php echo esc_js( sprintf( __( 'আপনি কি নিশ্চিতভাবে গাড়ি (%s)-এর এন্ট্রি মুছে ফেলতে চান?', 'ifs-parking' ), $item->vehicle_number ) ); ?>');">
+											<?php esc_html_e( 'ডিলিট', 'ifs-parking' ); ?>
+										</button>
+									</form>
+								<?php endif; ?>
 							</div>
 						</div>
 					<?php endforeach; ?>
@@ -1578,9 +1681,9 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		// বিআরটিএ অটো সিরিজ বর্ণ ম্যাপিং
 		var brtaAutoLetterMap = {
 			'Bike': 'হ',
-			'Cycle': '',
 			'Car': 'গ',
 			'CNG': 'থ',
+			'Cycle': '',
 			'Noah': 'চ',
 			'Hiace': 'চ',
 			'Truck': 'ট'
@@ -1614,7 +1717,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 
 		function getSelectedVeh() {
 			var el = document.querySelector('.ifs-quick-veh-selector:checked');
-			return el ? el.value : 'Car';
+			return el ? el.value : 'Bike';
 		}
 
 		function syncRateAndCategory() {

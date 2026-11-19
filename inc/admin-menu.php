@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // inc/admin-menu.php এর শুরুতে ক্যাপাবিলিটি আপডেট:
 function ifs_parking_admin_menu() {
-	$operator_cap = 'read';         // অপারেটররা শুধু চেক-ইন, লাইভ স্ট্যাটাস ও রিলিজ ব্যবহার করতে পারবে
+	$operator_cap = 'read';         // অপারেটররা শুধু চেক-ইন ও রিলিজ ব্যবহার করতে পারবে
 	$admin_cap    = 'manage_options'; // সেটিংস, স্টাফ, ক্যাটাগরি ও রিপোর্ট শুধু অ্যাডমিনের জন্য
 
 	add_menu_page(
@@ -31,15 +31,6 @@ function ifs_parking_admin_menu() {
 		$operator_cap,
 		'ifs-parking-vehicles',
 		'ifs_parking_render_vehicles_page'
-	);
-
-	add_submenu_page(
-		'ifs-parking-vehicles',
-		__( 'লাইভ স্ট্যাটাস', 'ifs-parking' ),
-		__( 'লাইভ স্ট্যাটাস', 'ifs-parking' ),
-		$operator_cap,
-		'ifs-parking-live-status',
-		'ifs_parking_render_live_status_page'
 	);
 
 	add_submenu_page(
@@ -115,42 +106,37 @@ function ifs_parking_render_layout_wrapper( $content_callback ) {
 	$site_logo    = get_option( 'ifs_parking_site_logo', '' );
 
 	$nav_items = array(
-		'ifs-parking-system'      => array(
+		'ifs-parking-system'     => array(
 			'label' => __( 'ড্যাশবোর্ড', 'ifs-parking' ),
 			'url'   => admin_url( 'admin.php?page=ifs-parking-system' ),
 			'svg'   => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>',
 		),
-		'ifs-parking-live-status' => array(
-			'label' => __( 'লাইভ স্ট্যাটাস', 'ifs-parking' ),
-			'url'   => admin_url( 'admin.php?page=ifs-parking-live-status' ),
-			'svg'   => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8zm-3-11c-.83 0-1.5-.67-1.5-1.5S11.17 2 12 2s1.5.67 1.5 1.5S12.83 5 12 5z"/><circle cx="12" cy="12" r="3"/><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm0 8c-1.65 0-3-1.35-3-3s1.35-3 3-3 3 1.35 3 3-1.35 3-3 3z"/></svg>',
-		),
-		'ifs-parking-vehicles'    => array(
+		'ifs-parking-vehicles'   => array(
 			'label' => __( 'গাড়িসমূহ', 'ifs-parking' ),
 			'url'   => admin_url( 'admin.php?page=ifs-parking-vehicles' ),
 			'svg'   => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.22.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.85 7h10.29l1.04 3H5.81l1.04-3z"/></svg>',
 		),
-		'ifs-parking-slots'       => array(
+		'ifs-parking-slots'      => array(
 			'label' => __( 'স্লট ম্যানেজমেন্ট', 'ifs-parking' ),
 			'url'   => admin_url( 'admin.php?page=ifs-parking-slots' ),
 			'svg'   => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h2v7H7zm4-3h2v10h-2zm4 5h2v5h-2z"/></svg>',
 		),
-		'ifs-parking-categories'  => array(
+		'ifs-parking-categories' => array(
 			'label' => __( 'ক্যাটাগরি', 'ifs-parking' ),
 			'url'   => admin_url( 'admin.php?page=ifs-parking-categories' ),
 			'svg'   => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l-5.5 9h11z"/><circle cx="17.5" cy="17.5" r="4.5"/><path d="M3 13.5h8v8H3z"/></svg>',
 		),
-		'ifs-parking-reports'     => array(
+		'ifs-parking-reports'    => array(
 			'label' => __( 'রিপোর্ট', 'ifs-parking' ),
 			'url'   => admin_url( 'admin.php?page=ifs-parking-reports' ),
 			'svg'   => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>',
 		),
-		'ifs-parking-staff'       => array(
+		'ifs-parking-staff'      => array(
 			'label' => __( 'স্টাফ', 'ifs-parking' ),
 			'url'   => admin_url( 'admin.php?page=ifs-parking-staff' ),
 			'svg'   => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>',
 		),
-		'ifs-parking-settings'    => array(
+		'ifs-parking-settings'   => array(
 			'label' => __( 'সেটিংস', 'ifs-parking' ),
 			'url'   => admin_url( 'admin.php?page=ifs-parking-settings' ),
 			'svg'   => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36.25c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c-.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>',
