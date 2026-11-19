@@ -20,9 +20,10 @@ function ifs_parking_cat_view_bn_num( $number ) {
 		return ifs_parking_to_bn_number( $number );
 	}
 
-	$en_digits = array( '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' );$bn_digits = array( '০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯' );
+	$en_digits = array( '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' );
+	$bn_digits = array( '০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯' );
 
-	return str_replace( $en_digits, $bn_digits, (string)$number );
+	return str_replace( $en_digits, $bn_digits, (string) $number );
 }
 
 /**
@@ -33,14 +34,14 @@ function ifs_parking_cat_view_bn_num( $number ) {
  * @param string $currency_symbol কারেন্সি প্রতীক।
  * @return void
  */
-function ifs_parking_render_category_view( $table_cats, $dept_name,$currency_symbol ) {
+function ifs_parking_render_category_view( $table_cats, $dept_name, $currency_symbol ) {
 	global $wpdb;
 
 	$rows = array();
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-	if ( $wpdb->get_var($wpdb->prepare( 'SHOW TABLES LIKE %s', $table_cats ) ) ===$table_cats ) {
+	if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_cats ) ) === $table_cats ) {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$rows = $wpdb->get_results($wpdb->prepare( "SELECT * FROM `{$table_cats}` WHERE department = %s ORDER BY id ASC", $dept_name ) );
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM `{$table_cats}` WHERE department = %s ORDER BY id ASC", $dept_name ) );
 	}
 
 	if ( empty( $rows ) ) {
@@ -67,7 +68,7 @@ function ifs_parking_render_category_view( $table_cats, $dept_name,$currency_sym
 		'Truck' => __( 'ট্রাক (Truck)', 'ifs-parking' ),
 	);
 
-	$active_currency = ! empty( $currency_symbol ) ?$currency_symbol : '৳';
+	$active_currency = ! empty( $currency_symbol ) ? $currency_symbol : '৳';
 	?>
 	<style>
 		/* ক্যাটাগরি ভিউ রেসপনসিভনেস ও সিস্টেম টাইপোগ্রাফি */
@@ -90,8 +91,8 @@ function ifs_parking_render_category_view( $table_cats, $dept_name,$currency_sym
 		}
 		.ifs-repeater-row.ifs-view-row-mode {
 			display: grid;
-			grid-template-columns: 1.4fr 1.2fr repeat(6, 1fr) 46px;
-			gap: 10px;
+			grid-template-columns: 1.4fr 1.2fr repeat(4, 1fr) 46px;
+			gap: 12px;
 			align-items: center;
 			background: #f8fafc;
 			border: 1px solid #e2e8f0;
@@ -106,9 +107,9 @@ function ifs_parking_render_category_view( $table_cats, $dept_name,$currency_sym
 		}
 
 		/* ট্যাবলেট এবং মিডিয়াম স্ক্রিন */
-		@media screen and (max-width: 1280px) {
+		@media screen and (max-width: 1120px) {
 			.ifs-repeater-row.ifs-view-row-mode {
-				grid-template-columns: repeat(3, 1fr);
+				grid-template-columns: repeat(2, 1fr);
 				gap: 12px;
 			}
 			.ifs-repeater-row.ifs-view-row-mode .ifs-repeater-action-col {
@@ -203,10 +204,12 @@ function ifs_parking_render_category_view( $table_cats, $dept_name,$currency_sym
 		<!-- রিপিটার লেআউটের অনুরূপ ভিউ রো -->
 		<div id="ifs-repeater-container">
 			<?php
-			foreach ( $rows as$r ) :
-				$veh_label       = isset($veh_labels_bd[ $r->vehicle_type ] ) ?$veh_labels_bd[ $r->vehicle_type ] :$r->vehicle_type;
-				$free_hours      = absint( $r->free_hours );$two_hour_val    = isset( $r->two_hour_rate ) ? (float)$r->two_hour_rate : 0.00;
-				$extra_hour_val  = isset( $r->extra_hour_rate ) ? (float)$r->extra_hour_rate : 0.00;
+			foreach ( $rows as $r ) :
+				$veh_label    = isset( $veh_labels_bd[ $r->vehicle_type ] ) ? $veh_labels_bd[ $r->vehicle_type ] : $r->vehicle_type;
+				$free_hours   = absint( $r->free_hours );
+				$two_hour_val = isset( $r->two_hour_rate ) && (float) $r->two_hour_rate > 0
+					? (float) $r->two_hour_rate
+					: ( isset( $r->hourly_rate ) ? (float) $r->hourly_rate : 0.00 );
 				?>
 				<div class="ifs-repeater-row ifs-view-row-mode">
 					<div>
@@ -220,23 +223,9 @@ function ifs_parking_render_category_view( $table_cats, $dept_name,$currency_sym
 					</div>
 
 					<div>
-						<label class="ifs-field-label"><?php esc_html_e( 'ঘণ্টা প্রতি', 'ifs-parking' ); ?></label>
-						<strong class="ifs-rate-val-green">
-							<?php echo esc_html( $active_currency . ifs_parking_cat_view_bn_num( number_format_i18n( (float) $r->hourly_rate, 2 ) ) ); ?>
-						</strong>
-					</div>
-
-					<div>
 						<label class="ifs-field-label"><?php esc_html_e( '২ ঘণ্টা', 'ifs-parking' ); ?></label>
-						<strong class="ifs-rate-val-blue">
+						<strong class="ifs-rate-val-green">
 							<?php echo esc_html( $active_currency . ifs_parking_cat_view_bn_num( number_format_i18n( $two_hour_val, 2 ) ) ); ?>
-						</strong>
-					</div>
-
-					<div>
-						<label class="ifs-field-label"><?php esc_html_e( 'অতিরিক্ত ঘণ্টা', 'ifs-parking' ); ?></label>
-						<strong class="ifs-rate-val-slate">
-							<?php echo esc_html( $active_currency . ifs_parking_cat_view_bn_num( number_format_i18n( $extra_hour_val, 2 ) ) ); ?>
 						</strong>
 					</div>
 

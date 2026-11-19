@@ -10,12 +10,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * ক্যাটাগরি টেবিলে two_hour_rate ও extra_hour_rate কলাম না থাকলে যুক্ত করার হেল্পার।
+ * ক্যাটাগরি টেবিলে two_hour_rate কলাম না থাকলে যুক্ত করার হেল্পার।
  *
  * @param string $table_cats ক্যাটাগরি টেবিল নাম।
  * @return void
  */
-function ifs_parking_ensure_category_rate_columns( $table_cats ) {
+function ifs_parking_ensure_category_two_hour_column( $table_cats ) {
 	global $wpdb;
 
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -31,12 +31,7 @@ function ifs_parking_ensure_category_rate_columns( $table_cats ) {
 
 	if ( ! in_array( 'two_hour_rate', $columns, true ) ) {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$wpdb->query( "ALTER TABLE `{$table_cats}` ADD COLUMN `two_hour_rate` DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER `hourly_rate`" );
-	}
-
-	if ( ! in_array( 'extra_hour_rate', $columns, true ) ) {
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$wpdb->query( "ALTER TABLE `{$table_cats}` ADD COLUMN `extra_hour_rate` DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER `two_hour_rate`" );
+		$wpdb->query( "ALTER TABLE `{$table_cats}` ADD COLUMN `two_hour_rate` DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER `customer_type`" );
 	}
 }
 
@@ -58,17 +53,15 @@ function ifs_parking_save_category( $table_cats, $orig_dept = '' ) {
 
 	global $wpdb;
 
-	ifs_parking_ensure_category_rate_columns( $table_cats );
+	ifs_parking_ensure_category_two_hour_column( $table_cats );
 
-	$department       = isset( $_POST['department'] ) ? sanitize_text_field( wp_unslash( $_POST['department'] ) ) : 'General';
-	$customer_types   = isset( $_POST['customer_type'] ) && is_array( $_POST['customer_type'] ) ? array_map( 'sanitize_text_field', wp_unslash( $_POST['customer_type'] ) ) : array();
-	$vehicle_types    = isset( $_POST['vehicle_type'] ) && is_array( $_POST['vehicle_type'] ) ? array_map( 'sanitize_text_field', wp_unslash( $_POST['vehicle_type'] ) ) : array();
-	$hourly_rates     = isset( $_POST['hourly_rate'] ) && is_array( $_POST['hourly_rate'] ) ? array_map( 'floatval', wp_unslash( $_POST['hourly_rate'] ) ) : array();
-	$two_hour_rates   = isset( $_POST['two_hour_rate'] ) && is_array( $_POST['two_hour_rate'] ) ? array_map( 'floatval', wp_unslash( $_POST['two_hour_rate'] ) ) : array();
-	$extra_hour_rates = isset( $_POST['extra_hour_rate'] ) && is_array( $_POST['extra_hour_rate'] ) ? array_map( 'floatval', wp_unslash( $_POST['extra_hour_rate'] ) ) : array();
-	$daily_rates      = isset( $_POST['daily_rate'] ) && is_array( $_POST['daily_rate'] ) ? array_map( 'floatval', wp_unslash( $_POST['daily_rate'] ) ) : array();
-	$monthly_rates    = isset( $_POST['monthly_rate'] ) && is_array( $_POST['monthly_rate'] ) ? array_map( 'floatval', wp_unslash( $_POST['monthly_rate'] ) ) : array();
-	$free_hours_arr   = isset( $_POST['free_hours'] ) && is_array( $_POST['free_hours'] ) ? array_map( 'absint', wp_unslash( $_POST['free_hours'] ) ) : array();
+	$department     = isset( $_POST['department'] ) ? sanitize_text_field( wp_unslash( $_POST['department'] ) ) : 'General';
+	$customer_types = isset( $_POST['customer_type'] ) && is_array( $_POST['customer_type'] ) ? array_map( 'sanitize_text_field', wp_unslash( $_POST['customer_type'] ) ) : array();
+	$vehicle_types  = isset( $_POST['vehicle_type'] ) && is_array( $_POST['vehicle_type'] ) ? array_map( 'sanitize_text_field', wp_unslash( $_POST['vehicle_type'] ) ) : array();
+	$two_hour_rates = isset( $_POST['two_hour_rate'] ) && is_array( $_POST['two_hour_rate'] ) ? array_map( 'floatval', wp_unslash( $_POST['two_hour_rate'] ) ) : array();
+	$daily_rates    = isset( $_POST['daily_rate'] ) && is_array( $_POST['daily_rate'] ) ? array_map( 'floatval', wp_unslash( $_POST['daily_rate'] ) ) : array();
+	$monthly_rates  = isset( $_POST['monthly_rate'] ) && is_array( $_POST['monthly_rate'] ) ? array_map( 'floatval', wp_unslash( $_POST['monthly_rate'] ) ) : array();
+	$free_hours_arr = isset( $_POST['free_hours'] ) && is_array( $_POST['free_hours'] ) ? array_map( 'absint', wp_unslash( $_POST['free_hours'] ) ) : array();
 
 	if ( empty( $department ) ) {
 		$department = 'General';
@@ -82,28 +75,28 @@ function ifs_parking_save_category( $table_cats, $orig_dept = '' ) {
 		}
 
 		foreach ( $customer_types as $index => $customer_type ) {
-			$vehicle_type = isset( $vehicle_types[ $index ] ) ? $vehicle_types[ $index ] : 'Car';
+			$vehicle_type = isset( $vehicle_types[ $index ] ) ? $vehicle_types[ $index ] : 'Bike';
 			$cat_name     = trim( $vehicle_type . ' - ' . $customer_type );
 			$cat_slug     = sanitize_title( $cat_name );
+			$two_hr_val   = isset( $two_hour_rates[ $index ] ) ? max( 0, $two_hour_rates[ $index ] ) : 0.00;
 
 			if ( ! empty( $customer_type ) ) {
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 				$wpdb->insert(
 					$table_cats,
 					array(
-						'department'       => $department,
-						'category_slug'    => $cat_slug,
-						'category_name'    => $cat_name,
-						'vehicle_type'     => $vehicle_type,
-						'customer_type'    => $customer_type,
-						'hourly_rate'      => isset( $hourly_rates[ $index ] ) ? max( 0, $hourly_rates[ $index ] ) : 0.00,
-						'two_hour_rate'    => isset( $two_hour_rates[ $index ] ) ? max( 0, $two_hour_rates[ $index ] ) : 0.00,
-						'extra_hour_rate'  => isset( $extra_hour_rates[ $index ] ) ? max( 0, $extra_hour_rates[ $index ] ) : 0.00,
-						'daily_rate'       => isset( $daily_rates[ $index ] ) ? max( 0, $daily_rates[ $index ] ) : 0.00,
-						'monthly_rate'     => isset( $monthly_rates[ $index ] ) ? max( 0, $monthly_rates[ $index ] ) : 0.00,
-						'free_hours'       => isset( $free_hours_arr[ $index ] ) ? $free_hours_arr[ $index ] : 0,
+						'department'    => $department,
+						'category_slug' => $cat_slug,
+						'category_name' => $cat_name,
+						'vehicle_type'  => $vehicle_type,
+						'customer_type' => $customer_type,
+						'hourly_rate'   => $two_hr_val,
+						'two_hour_rate' => $two_hr_val,
+						'daily_rate'    => isset( $daily_rates[ $index ] ) ? max( 0, $daily_rates[ $index ] ) : 0.00,
+						'monthly_rate'  => isset( $monthly_rates[ $index ] ) ? max( 0, $monthly_rates[ $index ] ) : 0.00,
+						'free_hours'    => isset( $free_hours_arr[ $index ] ) ? $free_hours_arr[ $index ] : 0,
 					),
-					array( '%s', '%s', '%s', '%s', '%s', '%f', '%f', '%f', '%f', '%f', '%d' )
+					array( '%s', '%s', '%s', '%s', '%s', '%f', '%f', '%f', '%f', '%d' )
 				);
 			}
 		}
@@ -130,7 +123,7 @@ function ifs_parking_save_category( $table_cats, $orig_dept = '' ) {
 function ifs_parking_render_category_form( $table_cats, $orig_dept, $action, $currency_setting, $currency_symbol ) {
 	global $wpdb;
 
-	ifs_parking_ensure_category_rate_columns( $table_cats );
+	ifs_parking_ensure_category_two_hour_column( $table_cats );
 
 	$edit_rows = array();
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -175,8 +168,8 @@ function ifs_parking_render_category_form( $table_cats, $orig_dept, $action, $cu
 		}
 		.ifs-repeater-row {
 			display: grid;
-			grid-template-columns: 1.4fr 1.2fr repeat(6, 1fr) 46px;
-			gap: 10px;
+			grid-template-columns: 1.4fr 1.2fr repeat(4, 1fr) 46px;
+			gap: 12px;
 			align-items: flex-end;
 			background: #f8fafc;
 			border: 1px solid #e2e8f0;
@@ -217,9 +210,9 @@ function ifs_parking_render_category_form( $table_cats, $orig_dept, $action, $cu
 		}
 
 		/* ট্যাবলেট এবং ল্যাপটপ মাঝারি ভিউপোর্ট */
-		@media screen and (max-width: 1280px) {
+		@media screen and (max-width: 1120px) {
 			.ifs-repeater-row {
-				grid-template-columns: repeat(3, 1fr);
+				grid-template-columns: repeat(2, 1fr);
 				gap: 12px;
 			}
 			.ifs-repeater-action-col {
@@ -324,19 +317,20 @@ function ifs_parking_render_category_form( $table_cats, $orig_dept, $action, $cu
 					? $edit_rows
 					: array(
 						(object) array(
-							'customer_type'   => 'General',
-							'vehicle_type'    => 'Bike',
-							'hourly_rate'     => '0.00',
-							'two_hour_rate'   => '0.00',
-							'extra_hour_rate' => '0.00',
-							'daily_rate'      => '0.00',
-							'monthly_rate'    => '0.00',
-							'free_hours'      => 0,
+							'customer_type' => 'General',
+							'vehicle_type'  => 'Bike',
+							'two_hour_rate' => '0.00',
+							'daily_rate'    => '0.00',
+							'monthly_rate'  => '0.00',
+							'free_hours'    => 0,
 						),
 					);
 
 				foreach ( $rows_to_render as $r ) :
-					$v_type = isset( $r->vehicle_type ) ? $r->vehicle_type : 'Bike';
+					$v_type       = isset( $r->vehicle_type ) ? $r->vehicle_type : 'Bike';
+					$two_hr_saved = isset( $r->two_hour_rate ) && (float) $r->two_hour_rate > 0
+						? $r->two_hour_rate
+						: ( isset( $r->hourly_rate ) ? $r->hourly_rate : '0.00' );
 					?>
 					<div class="ifs-repeater-row">
 						<div>
@@ -366,32 +360,10 @@ function ifs_parking_render_category_form( $table_cats, $orig_dept, $action, $cu
 								<svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
 								<?php
 								/* translators: %s: কারেন্সি প্রতীক */
-								echo esc_html( sprintf( __( 'ঘণ্টা (%s)', 'ifs-parking' ), $currency_symbol ) );
-								?>
-							</label>
-							<input type="number" min="0" step="0.01" name="hourly_rate[]" value="<?php echo esc_attr( isset( $r->hourly_rate ) ? $r->hourly_rate : '0.00' ); ?>" class="ifs-input-field">
-						</div>
-
-						<div>
-							<label class="ifs-field-label">
-								<svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
-								<?php
-								/* translators: %s: কারেন্সি প্রতীক */
 								echo esc_html( sprintf( __( '২ ঘণ্টা (%s)', 'ifs-parking' ), $currency_symbol ) );
 								?>
 							</label>
-							<input type="number" min="0" step="0.01" name="two_hour_rate[]" value="<?php echo esc_attr( isset( $r->two_hour_rate ) ? $r->two_hour_rate : '0.00' ); ?>" class="ifs-input-field">
-						</div>
-
-						<div>
-							<label class="ifs-field-label">
-								<svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
-								<?php
-								/* translators: %s: কারেন্সি প্রতীক */
-								echo esc_html( sprintf( __( 'অতিরিক্ত ঘণ্টা (%s)', 'ifs-parking' ), $currency_symbol ) );
-								?>
-							</label>
-							<input type="number" min="0" step="0.01" name="extra_hour_rate[]" value="<?php echo esc_attr( isset( $r->extra_hour_rate ) ? $r->extra_hour_rate : '0.00' ); ?>" class="ifs-input-field">
+							<input type="number" min="0" step="0.01" name="two_hour_rate[]" value="<?php echo esc_attr( $two_hr_saved ); ?>" class="ifs-input-field">
 						</div>
 
 						<div>
