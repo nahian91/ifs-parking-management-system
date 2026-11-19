@@ -95,6 +95,67 @@ function ifs_parking_get_quick_veh_svg( $type ) {
 }
 
 /**
+ * গাড়ির ধরণ ও ক্যাটাগরি আলাদাভাবে বের করার হেল্পার।
+ *
+ * @param string $parking_type  লগের parking_type / category_slug।
+ * @param array  $cats_by_slug  ক্যাটাগরি অবজেক্ট ম্যাপ।
+ * @param array  $veh_labels_bd গাড়ির ধরণের বাংলা লেবেল।
+ * @return array {
+ *     @type string $veh_type_label গাড়ির ধরণ।
+ *     @type string $category_label ক্যাটাগরি / প্যাকেজ।
+ * }
+ */
+function ifs_parking_split_veh_and_category( $parking_type, $cats_by_slug, $veh_labels_bd ) {
+	$slug_key    = strtolower( trim( (string) $parking_type ) );
+	$matched_cat = isset( $cats_by_slug[ $slug_key ] ) ? $cats_by_slug[ $slug_key ] : null;
+
+	$raw_veh = $matched_cat && ! empty( $matched_cat->vehicle_type ) ? $matched_cat->vehicle_type : '';
+	if ( '' === $raw_veh && '' !== $slug_key ) {
+		$parts   = explode( '-', $slug_key );
+		$raw_veh = ucfirst( trim( $parts[0] ) );
+	}
+
+	$veh_type_label = __( 'সাধারণ', 'ifs-parking' );
+	if ( '' !== $raw_veh ) {
+		if ( isset( $veh_labels_bd[ $raw_veh ] ) ) {
+			$veh_type_label = $veh_labels_bd[ $raw_veh ];
+		} else {
+			foreach ( $veh_labels_bd as $k => $lbl ) {
+				if ( strtolower( $k ) === strtolower( $raw_veh ) ) {
+					$veh_type_label = $lbl;
+					break;
+				}
+			}
+			if ( __( 'সাধারণ', 'ifs-parking' ) === $veh_type_label ) {
+				$veh_type_label = ucfirst( $raw_veh );
+			}
+		}
+	}
+
+	$category_label = __( 'General', 'ifs-parking' );
+	if ( $matched_cat ) {
+		if ( ! empty( $matched_cat->customer_type ) ) {
+			$category_label = $matched_cat->customer_type;
+		} elseif ( ! empty( $matched_cat->category_name ) ) {
+			$category_label = $matched_cat->category_name;
+		}
+	} elseif ( '' !== $slug_key ) {
+		$parts = explode( '-', $slug_key );
+		if ( count( $parts ) > 1 ) {
+			array_shift( $parts );
+			$category_label = ucwords( implode( ' ', $parts ) );
+		} else {
+			$category_label = ucwords( str_replace( '-', ' ', $slug_key ) );
+		}
+	}
+
+	return array(
+		'veh_type_label' => $veh_type_label,
+		'category_label' => $category_label,
+	);
+}
+
+/**
  * নতুন গাড়ি চেক-ইন ডাটা সেভ হ্যান্ডলার (একই পেজে রেখে ইনস্ট্যান্ট প্রিন্ট ট্রিগারসহ)।
  *
  * @param string $table_logs লগ টেবিল নাম।
@@ -147,12 +208,13 @@ function ifs_parking_save_vehicle_entry( $table_logs, $table_cats ) {
 
 	$fee_rate = 0.00;
 	if ( $selected_cat ) {
+		$two_hr_val = isset( $selected_cat->two_hour_rate ) ? (float) $selected_cat->two_hour_rate : 0.00;
 		if ( 'daily' === $billing_type ) {
 			$fee_rate = (float) $selected_cat->daily_rate;
 		} elseif ( 'monthly' === $billing_type ) {
 			$fee_rate = (float) $selected_cat->monthly_rate;
 		} else {
-			$fee_rate = (float) $selected_cat->hourly_rate;
+			$fee_rate = ( $two_hr_val > 0 ) ? $two_hr_val : (float) $selected_cat->hourly_rate;
 		}
 	}
 
@@ -238,6 +300,48 @@ function ifs_parking_save_vehicle_entry( $table_logs, $table_cats ) {
 }
 
 /**
+ * ক্যাটাগরি ম্যাচ করে ২ ঘণ্টা ও অতিরিক্ত ঘণ্টা রেট বের করার হেল্পার।
+ *
+ * @param array  $categories_map ক্যাটাগরি স্লাগ অনুযায়ী ম্যাপ।
+ * @param string $parking_type   লগের parking_type।
+ * @param float  $base_rate      লগের fee।
+ * @param int    $diff_secs      পার্কে থাকার সময় (সেকেন্ড)।
+ * @return float
+ */
+function ifs_parking_calculate_slab_or_extra_fee( $categories_map, $parking_type, $base_rate, $diff_secs ) {
+	$cat_lower = strtolower( (string) $parking_type );
+
+	if ( false !== strpos( $cat_lower, 'monthly' ) ) {
+		return round( $base_rate, 2 );
+	}
+
+	if ( false !== strpos( $cat_lower, 'daily' ) ) {
+		return round( max( 1, (int) ceil( $diff_secs / 86400 ) ) * $base_rate, 2 );
+	}
+
+	$matched_cat = isset( $categories_map[ $cat_lower ] ) ? $categories_map[ $cat_lower ] : null;
+	$two_hr_rate = ( $matched_cat && isset( $matched_cat->two_hour_rate ) && (float) $matched_cat->two_hour_rate > 0 )
+		? (float) $matched_cat->two_hour_rate
+		: $base_rate;
+	$extra_hr_rate = ( $matched_cat && isset( $matched_cat->extra_hour_rate ) )
+		? (float) $matched_cat->extra_hour_rate
+		: 0.00;
+
+	if ( $diff_secs <= 7200 ) {
+		return round( $two_hr_rate, 2 );
+	}
+
+	if ( $extra_hr_rate > 0 ) {
+		$extra_secs  = max( 0, $diff_secs - 7200 );
+		$extra_hours = (int) ceil( $extra_secs / 3600 );
+		return round( $two_hr_rate + ( $extra_hours * $extra_hr_rate ), 2 );
+	}
+
+	$slabs = (int) ceil( $diff_secs / 7200 );
+	return round( $slabs * $two_hr_rate, 2 );
+}
+
+/**
  * অল-ইন-ওয়ান মিনিমাল চেক-ইন ফর্ম + ইনস্ট্যান্ট প্রিন্ট + রিসেন্ট লিস্ট রেন্ডারার।
  *
  * @param string $table_cats      ক্যাটাগরি টেবিল নাম।
@@ -256,12 +360,28 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 	$just_released_item = null;
 	$bd_tz              = ifs_parking_bd_timezone();
 
+	// ক্যাটাগরি ও ডিপার্টমেন্ট লোড।
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	$all_categories = $wpdb->get_results( "SELECT * FROM `{$table_cats}` ORDER BY id ASC" );
+
+	$categories_by_slug = array();
+	if ( ! empty( $all_categories ) ) {
+		foreach ( $all_categories as $c_item ) {
+			if ( ! empty( $c_item->category_slug ) ) {
+				$slug_lc = strtolower( (string) $c_item->category_slug );
+				if ( ! isset( $categories_by_slug[ $slug_lc ] ) || (float) ( $c_item->two_hour_rate ?? 0 ) > 0 || (float) ( $c_item->extra_hour_rate ?? 0 ) > 0 ) {
+					$categories_by_slug[ $slug_lc ] = $c_item;
+				}
+			}
+		}
+	}
+
 	// ১. নতুন চেক-ইন সেভ (একই পেজে)।
 	if ( isset( $_POST['ifs_vehicle_nonce'] ) ) {
 		$new_log_id = ifs_parking_save_vehicle_entry( $table_logs, $table_cats );
 	}
 
-	// ২. একই পেজ থেকে রিলিজ / চেক-আউট হ্যান্ডলার (প্রতি ২ ঘণ্টা স্ল্যাব অটো-হিসাবসহ + অটো প্রিন্ট প্রিভিউ)।
+	// ২. একই পেজ থেকে রিলিজ / চেক-আউট হ্যান্ডলার (২ ঘণ্টা + অতিরিক্ত ঘণ্টা রেট অনুযায়ী অটো-হিসাবসহ)।
 	if (
 		isset( $_POST['ifs_quick_checkout_nonce'] ) &&
 		wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['ifs_quick_checkout_nonce'] ) ), 'ifs_quick_checkout' ) &&
@@ -276,17 +396,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 				$now_utc   = time();
 				$diff_secs = $entry_ts ? max( 0, $now_utc - $entry_ts ) : 0;
 				$base_rate = (float) $item->fee;
-				$cat_lower = strtolower( (string) $item->parking_type );
-
-				if ( false !== strpos( $cat_lower, 'monthly' ) ) {
-					$final_fee = $base_rate;
-				} elseif ( false !== strpos( $cat_lower, 'daily' ) ) {
-					$final_fee = max( 1, (int) ceil( $diff_secs / 86400 ) ) * $base_rate;
-				} else {
-					// প্রতি ২ ঘণ্টা (৭২০০ সেকেন্ড) স্ল্যাব অনুযায়ী চার্জ।
-					$slabs     = ( $diff_secs <= 7200 ) ? 1 : (int) ceil( $diff_secs / 7200 );
-					$final_fee = round( $slabs * $base_rate, 2 );
-				}
+				$final_fee = ifs_parking_calculate_slab_or_extra_fee( $categories_by_slug, $item->parking_type, $base_rate, $diff_secs );
 
 				$exit_mysql = wp_date( 'Y-m-d H:i:s', $now_utc, $bd_tz );
 
@@ -329,10 +439,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		}
 	}
 
-	// ক্যাটাগরি ও ডিপার্টমেন্ট লোড।
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-	$all_categories = $wpdb->get_results( "SELECT * FROM `{$table_cats}` ORDER BY id ASC" );
-	$departments    = ! empty( $all_categories ) ? array_unique( wp_list_pluck( $all_categories, 'department' ) ) : array( 'General' );
+	$departments = ! empty( $all_categories ) ? array_unique( wp_list_pluck( $all_categories, 'department' ) ) : array( 'General' );
 	if ( in_array( 'General', $departments, true ) ) {
 		$departments = array_diff( $departments, array( 'General' ) );
 		array_unshift( $departments, 'General' );
@@ -392,7 +499,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		}
 	}
 
-	// সিরিয়াল: বাইক -> কার -> সিএনজি -> সাইকেল -> নোয়াহ -> হাইয়েস -> ট্রাক
+	// সিরিয়াল: বাইক -> কার -> সিএনজি -> সাইকেল -> নোয়াহ -> হাইয়েস -> ট্রাক
 	$veh_labels_bd = array(
 		'Bike'  => __( 'বাইক', 'ifs-parking' ),
 		'Car'   => __( 'কার', 'ifs-parking' ),
@@ -720,6 +827,13 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			flex-wrap: wrap;
 			gap: 10px;
 		}
+		.ifs-rate-subhint {
+			display: block;
+			font-size: 12px;
+			color: #0369a1;
+			font-weight: 600;
+			margin-top: 2px;
+		}
 		.ifs-unified-app select.ifs-rate-select {
 			appearance: none !important;
 			-webkit-appearance: none !important;
@@ -908,6 +1022,23 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		.ifs-recent-item.is-overdue-card {
 			border-color: #fcd34d;
 			background: #fffbeb;
+		}
+		.ifs-badge-veh-type {
+			font-size: 12px;
+			font-weight: 700;
+			padding: 2px 9px;
+			border-radius: 6px;
+			background: #e0f2fe;
+			color: #0369a1;
+		}
+		.ifs-badge-cat-only {
+			font-size: 12px;
+			font-weight: 700;
+			padding: 2px 9px;
+			border-radius: 6px;
+			background: #f1f5f9;
+			color: #334155;
+			border: 1px solid #e2e8f0;
 		}
 		.ifs-today-tag {
 			font-size: 11px;
@@ -1098,7 +1229,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 				<input type="hidden" name="category_id" id="ifs-hidden-cat-id" value="">
 				<input type="hidden" name="selected_rate_type" id="ifs-hidden-rate-type" value="hourly">
 
-				<!-- কুইক গাড়ির বাটন (সিরিয়াল: বাইক, কার, সিএনজি, সাইকেল, নোয়াহ, হাইয়েস, ট্রাক) -->
+				<!-- কুইক গাড়ির বাটন (সিরিয়াল: বাইক, কার, সিএনজি, সাইকেল, নোয়াহ, হাইয়েস, ট্রাক) -->
 				<div class="ifs-quick-veh-grid">
 					<?php
 					foreach ( $ordered_vehs as $v_idx => $v_item ) :
@@ -1153,14 +1284,15 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 					<input type="text" name="gym_employee_id" id="ifs-gym-emp-id-input" class="ifs-m-input" placeholder="<?php esc_attr_e( 'সদস্য / স্টাফ আইডি নম্বর লিখুন *', 'ifs-parking' ); ?>">
 				</div>
 
-				<!-- নির্ধারিত ২-ঘণ্টা স্ল্যাব ফি স্ট্রিপ -->
+				<!-- নির্ধারিত ২-ঘণ্টা স্ল্যাব ও অতিরিক্ত ঘণ্টা ফি স্ট্রিপ -->
 				<div class="ifs-rate-strip">
 					<div>
-						<span style="font-size:13px; color:#0369a1; font-weight:600;"><?php esc_html_e( 'নির্ধারিত চার্জ (প্রতি ২ ঘণ্টা স্ল্যাব):', 'ifs-parking' ); ?></span>
+						<span style="font-size:13px; color:#0369a1; font-weight:600;"><?php esc_html_e( 'নির্ধারিত চার্জ (২ ঘণ্টা):', 'ifs-parking' ); ?></span>
 						<strong id="ifs-live-rate-display" style="font-size:17px; color:#0f172a; margin-left:6px;">-</strong>
+						<span class="ifs-rate-subhint" id="ifs-live-extra-rate-display"></span>
 					</div>
 					<select id="ifs-pkg-type-select" class="ifs-rate-select">
-						<option value="hourly"><?php esc_html_e( 'প্রতি ২ ঘণ্টা স্ল্যাব', 'ifs-parking' ); ?></option>
+						<option value="hourly"><?php esc_html_e( '২ ঘণ্টা + অতিরিক্ত ঘণ্টা', 'ifs-parking' ); ?></option>
 						<option value="daily"><?php esc_html_e( 'দৈনিক প্যাকেজ', 'ifs-parking' ); ?></option>
 						<option value="monthly"><?php esc_html_e( 'মাসিক প্যাকেজ', 'ifs-parking' ); ?></option>
 					</select>
@@ -1175,19 +1307,20 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 
 					<?php if ( $show_print_after_checkin ) : ?>
 						<?php
-						$j_time = ifs_parking_format_local_datetime( $just_checked_in->entry_time, 'j M, Y - h:i A' );
-						$j_exit = ! empty( $just_checked_in->exit_time ) ? ifs_parking_format_local_datetime( $just_checked_in->exit_time, 'j M, Y - h:i A' ) : __( 'এখনও পার্কিংয়ে', 'ifs-parking' );
-						$j_inv  = ! empty( $just_checked_in->reference_id ) ? strtok( $just_checked_in->reference_id, ' [' ) : 'NPMS-' . $just_checked_in->id;
-						$j_cat  = ucwords( str_replace( '-', ' - ', (string) $just_checked_in->parking_type ) );
-						$j_phn  = ifs_parking_veh_bn_num( $just_checked_in->driver_phone );
-						$j_fee  = $currency_symbol . ifs_parking_veh_bn_num( number_format( (float) $just_checked_in->fee, 2 ) );
+						$j_split = ifs_parking_split_veh_and_category( $just_checked_in->parking_type, $categories_by_slug, $veh_labels_bd );
+						$j_time  = ifs_parking_format_local_datetime( $just_checked_in->entry_time, 'j M, Y - h:i A' );
+						$j_exit  = ! empty( $just_checked_in->exit_time ) ? ifs_parking_format_local_datetime( $just_checked_in->exit_time, 'j M, Y - h:i A' ) : __( 'এখনও পার্কিংয়ে', 'ifs-parking' );
+						$j_inv   = ! empty( $just_checked_in->reference_id ) ? strtok( $just_checked_in->reference_id, ' [' ) : 'NPMS-' . $just_checked_in->id;
+						$j_phn   = ifs_parking_veh_bn_num( $just_checked_in->driver_phone );
+						$j_fee   = $currency_symbol . ifs_parking_veh_bn_num( number_format( (float) $just_checked_in->fee, 2 ) );
 						?>
 						<button type="button"
 								id="ifs-print-latest-btn"
 								class="ifs-btn-print-slip-main"
 								data-inv="<?php echo esc_attr( $j_inv ); ?>"
 								data-veh="<?php echo esc_attr( $just_checked_in->vehicle_number ); ?>"
-								data-cat="<?php echo esc_attr( $j_cat ); ?>"
+								data-veh-type="<?php echo esc_attr( $j_split['veh_type_label'] ); ?>"
+								data-cat="<?php echo esc_attr( $j_split['category_label'] ); ?>"
 								data-phone="<?php echo esc_attr( $j_phn ); ?>"
 								data-time="<?php echo esc_attr( $j_time ); ?>"
 								data-exit="<?php echo esc_attr( $j_exit ); ?>"
@@ -1285,15 +1418,16 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 						$is_parked  = ( 'Parked' === $item->status );
 						$is_overdue = ( $is_parked && $diff_secs > 7200 );
 						$base_rate  = (float) $item->fee;
-						$slabs      = ( $diff_secs <= 7200 ) ? 1 : (int) ceil( $diff_secs / 7200 );
-						$live_fee   = $is_parked ? round( $slabs * $base_rate, 2 ) : $base_rate;
+						$live_fee   = $is_parked
+							? ifs_parking_calculate_slab_or_extra_fee( $categories_by_slug, $item->parking_type, $base_rate, $diff_secs )
+							: $base_rate;
 						$dept_txt   = ! empty( $item->reference_id ) ? $item->reference_id : 'General';
 						$inv_no     = strtok( $dept_txt, ' [' );
 						$time_str   = $entry_ts ? ifs_parking_veh_bn_num( wp_date( 'j M, Y - h:i A', $entry_ts, $bd_tz ) ) : $item->entry_time;
 						$time_short = $entry_ts ? ifs_parking_veh_bn_num( wp_date( 'h:i A, j M', $entry_ts, $bd_tz ) ) : $item->entry_time;
 						$exit_str   = $exit_ts ? ifs_parking_veh_bn_num( wp_date( 'j M, Y - h:i A', $exit_ts, $bd_tz ) ) : __( 'এখনও পার্কিংয়ে', 'ifs-parking' );
 						$exit_short = $exit_ts ? ifs_parking_veh_bn_num( wp_date( 'h:i A, j M', $exit_ts, $bd_tz ) ) : __( 'চলমান', 'ifs-parking' );
-						$cat_clean  = ucwords( str_replace( '-', ' - ', (string) $item->parking_type ) );
+						$split_info = ifs_parking_split_veh_and_category( $item->parking_type, $categories_by_slug, $veh_labels_bd );
 						$st_label   = $is_overdue ? __( 'ওভারডিউ (২+ ঘণ্টা)', 'ifs-parking' ) : ( $is_parked ? __( 'পার্কিংয়ে সক্রিয়', 'ifs-parking' ) : __( 'রিলিজ সম্পন্ন', 'ifs-parking' ) );
 						?>
 						<div class="ifs-recent-item <?php echo $is_overdue ? 'is-overdue-card' : ''; ?>"
@@ -1304,8 +1438,11 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 							<div>
 								<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
 									<strong style="font-size:16px; color:#0f172a;"><?php echo esc_html( $item->vehicle_number ); ?></strong>
-									<span style="font-size:12px; font-weight:700; padding:2px 9px; border-radius:6px; background:#e0f2fe; color:#0369a1;">
-										<?php echo esc_html( $cat_clean ); ?>
+									<span class="ifs-badge-veh-type">
+										<?php echo esc_html( $split_info['veh_type_label'] ); ?>
+									</span>
+									<span class="ifs-badge-cat-only">
+										<?php echo esc_html( $split_info['category_label'] ); ?>
 									</span>
 									<?php if ( $is_today ) : ?>
 										<span class="ifs-today-tag"><?php esc_html_e( 'আজকের', 'ifs-parking' ); ?></span>
@@ -1337,7 +1474,8 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 								<button type="button" class="ifs-btn-mini-print ifs-trigger-slip-print"
 										data-inv="<?php echo esc_attr( $inv_no ); ?>"
 										data-veh="<?php echo esc_attr( $item->vehicle_number ); ?>"
-										data-cat="<?php echo esc_attr( $cat_clean ); ?>"
+										data-veh-type="<?php echo esc_attr( $split_info['veh_type_label'] ); ?>"
+										data-cat="<?php echo esc_attr( $split_info['category_label'] ); ?>"
 										data-phone="<?php echo esc_attr( ifs_parking_veh_bn_num( $item->driver_phone ) ); ?>"
 										data-time="<?php echo esc_attr( $time_str ); ?>"
 										data-exit="<?php echo esc_attr( $exit_str ); ?>"
@@ -1388,13 +1526,15 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			slipBadge: <?php echo wp_json_encode( __( 'পার্কিং এন্ট্রি টোকেন ও বিলিং স্লিপ', 'ifs-parking' ) ); ?>,
 			vehLbl: <?php echo wp_json_encode( __( 'গাড়ির রেজিস্ট্রেশন নম্বর', 'ifs-parking' ) ); ?>,
 			invLbl: <?php echo wp_json_encode( __( 'টোকেন / স্লিপ নং', 'ifs-parking' ) ); ?>,
-			catLbl: <?php echo wp_json_encode( __( 'গাড়ির ধরণ / ক্যাটাগরি', 'ifs-parking' ) ); ?>,
+			vehTypeLbl: <?php echo wp_json_encode( __( 'গাড়ির ধরণ', 'ifs-parking' ) ); ?>,
+			catLbl: <?php echo wp_json_encode( __( 'ক্যাটাগরি', 'ifs-parking' ) ); ?>,
 			timeLbl: <?php echo wp_json_encode( __( 'প্রবেশের সময়', 'ifs-parking' ) ); ?>,
 			exitLbl: <?php echo wp_json_encode( __( 'বের হওয়ার সময়', 'ifs-parking' ) ); ?>,
 			statusLbl: <?php echo wp_json_encode( __( 'বর্তমান অবস্থা', 'ifs-parking' ) ); ?>,
 			phoneLbl: <?php echo wp_json_encode( __( 'মোবাইল নম্বর', 'ifs-parking' ) ); ?>,
 			feeLbl: <?php echo wp_json_encode( __( 'নির্ধারিত / চলতি ফি', 'ifs-parking' ) ); ?>,
-			noteTxt: <?php echo wp_json_encode( __( 'বিঃদ্রঃ প্রতি ২ ঘণ্টা স্ল্যাব অনুযায়ী পার্কিং চার্জ গণনা করা হয়। গাড়ি বের করার সময় স্লিপটি প্রদর্শন করুন।', 'ifs-parking' ) ); ?>,
+			extraHourPrefix: <?php echo wp_json_encode( __( 'অতিরিক্ত ঘণ্টা: ', 'ifs-parking' ) ); ?>,
+			noteTxt: <?php echo wp_json_encode( __( 'বিঃদ্রঃ প্রথম ২ ঘণ্টা ও অতিরিক্ত ঘণ্টা অনুযায়ী পার্কিং চার্জ গণনা করা হয়। গাড়ি বের করার সময় স্লিপটি প্রদর্শন করুন।', 'ifs-parking' ) ); ?>,
 			wishTxt: <?php echo wp_json_encode( __( 'নিরাপদ যাত্রা কামনা করছি!', 'ifs-parking' ) ); ?>,
 			cyclePlaceholder: <?php echo wp_json_encode( __( 'সাইকেল নম্বর / টোকেন লিখুন', 'ifs-parking' ) ); ?>,
 			platePlaceholder: <?php echo wp_json_encode( __( '১১-১২৩৪', 'ifs-parking' ) ); ?>
@@ -1411,17 +1551,18 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			'Truck': 'ট'
 		};
 
-		var fDiv           = document.getElementById('f-div');
-		var fBrtaLetter    = document.getElementById('f-brta-letter');
-		var fNum           = document.getElementById('f-num');
-		var livePlateBadge = document.getElementById('ifs-live-plate-preview');
-		var deptDropdown   = document.getElementById('ifs-dept-dropdown');
-		var pkgTypeSelect  = document.getElementById('ifs-pkg-type-select');
-		var hiddenCatId    = document.getElementById('ifs-hidden-cat-id');
-		var hiddenRateType = document.getElementById('ifs-hidden-rate-type');
-		var rateDisplay    = document.getElementById('ifs-live-rate-display');
-		var condIdBox      = document.getElementById('ifs-conditional-id-box');
-		var condIdInput    = document.getElementById('ifs-gym-emp-id-input');
+		var fDiv            = document.getElementById('f-div');
+		var fBrtaLetter     = document.getElementById('f-brta-letter');
+		var fNum            = document.getElementById('f-num');
+		var livePlateBadge  = document.getElementById('ifs-live-plate-preview');
+		var deptDropdown    = document.getElementById('ifs-dept-dropdown');
+		var pkgTypeSelect   = document.getElementById('ifs-pkg-type-select');
+		var hiddenCatId     = document.getElementById('ifs-hidden-cat-id');
+		var hiddenRateType  = document.getElementById('ifs-hidden-rate-type');
+		var rateDisplay     = document.getElementById('ifs-live-rate-display');
+		var extraRateDisp   = document.getElementById('ifs-live-extra-rate-display');
+		var condIdBox       = document.getElementById('ifs-conditional-id-box');
+		var condIdInput     = document.getElementById('ifs-gym-emp-id-input');
 
 		var bnMap = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
 		function toBnDigits(str) {
@@ -1498,8 +1639,14 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 				}
 			}
 
-			var matched = categoriesData.find(function(c) {
+			var deptVehMatches = categoriesData.filter(function(c) {
 				return c.department === deptName && c.vehicle_type === vehType;
+			});
+
+			var matched = deptVehMatches.find(function(c) {
+				return parseFloat(c.two_hour_rate || 0) > 0 || parseFloat(c.extra_hour_rate || 0) > 0 || parseFloat(c.hourly_rate || 0) > 0 || parseFloat(c.daily_rate || 0) > 0 || parseFloat(c.monthly_rate || 0) > 0;
+			}) || deptVehMatches[0] || categoriesData.find(function(c) {
+				return c.vehicle_type === vehType && (parseFloat(c.two_hour_rate || 0) > 0 || parseFloat(c.extra_hour_rate || 0) > 0 || parseFloat(c.hourly_rate || 0) > 0);
 			}) || categoriesData.find(function(c) {
 				return c.vehicle_type === vehType;
 			}) || categoriesData[0];
@@ -1507,9 +1654,23 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			if (matched) {
 				hiddenCatId.value    = matched.id;
 				hiddenRateType.value = rateType;
-				var amount = rateType === 'daily' ? matched.daily_rate : (rateType === 'monthly' ? matched.monthly_rate : matched.hourly_rate);
+				var twoHrVal    = parseFloat(matched.two_hour_rate || 0);
+				var extraHrVal  = parseFloat(matched.extra_hour_rate || 0);
+				var hourlyVal   = parseFloat(matched.hourly_rate || 0);
+				var primaryTwo  = twoHrVal > 0 ? twoHrVal : hourlyVal;
+				var amount      = rateType === 'daily'
+					? parseFloat(matched.daily_rate || 0)
+					: (rateType === 'monthly' ? parseFloat(matched.monthly_rate || 0) : primaryTwo);
+
 				if (rateDisplay) {
-					rateDisplay.textContent = currencySymbol + toBnDigits(parseFloat(amount).toFixed(2));
+					rateDisplay.textContent = currencySymbol + toBnDigits(amount.toFixed(2));
+				}
+				if (extraRateDisp) {
+					if (rateType === 'hourly') {
+						extraRateDisp.textContent = i18nText.extraHourPrefix + currencySymbol + toBnDigits(extraHrVal.toFixed(2));
+					} else {
+						extraRateDisp.textContent = '';
+					}
 				}
 			}
 			updateLivePlateBadge();
@@ -1537,16 +1698,63 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		}
 		syncRateAndCategory();
 
-		// প্রফেশনাল স্লিপ প্রিন্ট ফাংশন (সাদা প্রিভিউ রোধে আইসোলেটেড প্রিন্ট ফ্রেম)
+		// প্রফেশনাল স্লিপ প্রিন্ট ফাংশন (প্রিন্ট প্রিভিউ ও রিয়েল প্রিন্টার উভয়ের জন্য অপ্টিমাইজড)
 		function printSlipData(data) {
-			var invText    = data.inv || '-';
-			var vehText    = data.veh || '-';
-			var catText    = data.cat || '-';
-			var timeText   = data.time || '-';
-			var exitText   = data.exit || i18nText.stillParked;
-			var statusText = data.status || i18nText.activeStatus;
-			var feeText    = data.fee || '-';
-			var phoneText  = data.phone || '';
+			var invText     = data.inv || '-';
+			var vehText     = data.veh || '-';
+			var vehTypeText = data.vehType || '-';
+			var catText     = data.cat || '-';
+			var timeText    = data.time || '-';
+			var exitText    = data.exit || i18nText.stillParked;
+			var statusText  = data.status || i18nText.activeStatus;
+			var feeText     = data.fee || '-';
+			var phoneText   = data.phone || '';
+
+			var phoneRowHtml = phoneText
+				? '<tr><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#475569;font-weight:600;">' + i18nText.phoneLbl + '</td><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#0f172a;font-weight:700;text-align:right;">' + phoneText + '</td></tr>'
+				: '';
+
+			var slipHtml =
+				'<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + brandTitle + '</title>' +
+				'<style>@page{size:auto;margin:4mm;}body{margin:0 auto;padding:8px 6px;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#000000;background:#ffffff;max-width:300px;font-size:12.5px;line-height:1.45;-webkit-print-color-adjust:exact;print-color-adjust:exact;}</style>' +
+				'</head><body>' +
+				'<div style="text-align:center;border-bottom:1.5px dashed #000000;padding-bottom:8px;margin-bottom:8px;">' +
+				'<div style="font-size:16px;font-weight:800;">' + brandTitle + '</div>' +
+				'<div style="font-size:11.5px;color:#1e293b;margin-top:2px;">' + i18nText.helpLbl + ' ' + phoneHelp + '</div>' +
+				'<div style="display:inline-block;margin-top:6px;padding:2px 10px;border:1px solid #000000;border-radius:4px;font-size:11px;font-weight:700;">' + i18nText.slipBadge + '</div>' +
+				'</div>' +
+				'<div style="text-align:center;border:1.5px solid #000000;border-radius:6px;padding:8px 6px;margin-bottom:8px;">' +
+				'<div style="font-size:10.5px;font-weight:600;color:#334155;margin-bottom:2px;">' + i18nText.vehLbl + '</div>' +
+				'<div style="font-size:16px;font-weight:800;">' + vehText + '</div>' +
+				'</div>' +
+				'<table style="width:100%;border-collapse:collapse;margin-bottom:8px;"><tbody>' +
+				'<tr><td style="padding:4px 2px;border-bottom:1px dotted #94a3b8;font-weight:600;width:42%;">' + i18nText.invLbl + '</td><td style="padding:4px 2px;border-bottom:1px dotted #94a3b8;font-weight:700;text-align:right;">' + invText + '</td></tr>' +
+				'<tr><td style="padding:4px 2px;border-bottom:1px dotted #94a3b8;font-weight:600;">' + i18nText.vehTypeLbl + '</td><td style="padding:4px 2px;border-bottom:1px dotted #94a3b8;font-weight:700;text-align:right;">' + vehTypeText + '</td></tr>' +
+				'<tr><td style="padding:4px 2px;border-bottom:1px dotted #94a3b8;font-weight:600;">' + i18nText.catLbl + '</td><td style="padding:4px 2px;border-bottom:1px dotted #94a3b8;font-weight:700;text-align:right;">' + catText + '</td></tr>' +
+				'<tr><td style="padding:4px 2px;border-bottom:1px dotted #94a3b8;font-weight:600;">' + i18nText.timeLbl + '</td><td style="padding:4px 2px;border-bottom:1px dotted #94a3b8;font-weight:700;text-align:right;">' + timeText + '</td></tr>' +
+				'<tr><td style="padding:4px 2px;border-bottom:1px dotted #94a3b8;font-weight:600;">' + i18nText.exitLbl + '</td><td style="padding:4px 2px;border-bottom:1px dotted #94a3b8;font-weight:700;text-align:right;">' + exitText + '</td></tr>' +
+				'<tr><td style="padding:4px 2px;border-bottom:1px dotted #94a3b8;font-weight:600;">' + i18nText.statusLbl + '</td><td style="padding:4px 2px;border-bottom:1px dotted #94a3b8;font-weight:700;text-align:right;">' + statusText + '</td></tr>' +
+				phoneRowHtml +
+				'</tbody></table>' +
+				'<div style="border-top:1.5px dashed #000000;border-bottom:1.5px dashed #000000;padding:8px 2px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">' +
+				'<span style="font-size:12px;font-weight:700;">' + i18nText.feeLbl + '</span>' +
+				'<strong style="font-size:15.5px;font-weight:800;">' + feeText + '</strong>' +
+				'</div>' +
+				'<div style="font-size:11px;border-left:3px solid #000000;padding:5px 8px;margin-bottom:8px;">' + i18nText.noteTxt + '</div>' +
+				'<div style="text-align:center;font-size:11px;"><strong>' + i18nText.wishTxt + '</strong><br><span>' + brandTitle + '</span></div>' +
+				'</body></html>';
+
+			var printWin = window.open('', '_blank', 'width=360,height=600,scrollbars=yes');
+			if (printWin && printWin.document) {
+				printWin.document.open();
+				printWin.document.write(slipHtml);
+				printWin.document.close();
+				printWin.focus();
+				setTimeout(function() {
+					printWin.print();
+				}, 200);
+				return;
+			}
 
 			var oldFrame = document.getElementById('ifs-print-sandbox-frame');
 			if (oldFrame && oldFrame.parentNode) {
@@ -1556,12 +1764,12 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 			var iframe = document.createElement('iframe');
 			iframe.id = 'ifs-print-sandbox-frame';
 			iframe.style.position = 'fixed';
-			iframe.style.right = '0';
-			iframe.style.bottom = '0';
-			iframe.style.width = '1px';
-			iframe.style.height = '1px';
-			iframe.style.opacity = '0';
+			iframe.style.left = '0';
+			iframe.style.top = '0';
+			iframe.style.width = '320px';
+			iframe.style.height = '480px';
 			iframe.style.border = '0';
+			iframe.style.zIndex = '-1';
 			document.body.appendChild(iframe);
 
 			var frameWin = iframe.contentWindow;
@@ -1571,54 +1779,22 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 				return;
 			}
 
-			var phoneRowHtml = phoneText
-				? '<tr><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#475569;font-weight:600;">' + i18nText.phoneLbl + '</td><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#0f172a;font-weight:700;text-align:right;">' + phoneText + '</td></tr>'
-				: '';
-
 			doc.open();
-			doc.write(
-				'<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + brandTitle + '</title>' +
-				'<style>@page{size:auto;margin:6mm;}body{margin:0 auto;padding:10px 8px;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#0f172a;background:#ffffff;max-width:320px;font-size:12.5px;line-height:1.45;}</style>' +
-				'</head><body>' +
-				'<div style="text-align:center;border-bottom:1.5px dashed #0f172a;padding-bottom:10px;margin-bottom:10px;">' +
-				'<div style="font-size:16px;font-weight:800;">' + brandTitle + '</div>' +
-				'<div style="font-size:11.5px;color:#334155;margin-top:2px;">' + i18nText.helpLbl + ' ' + phoneHelp + '</div>' +
-				'<div style="display:inline-block;margin-top:6px;padding:2px 10px;border:1px solid #0f172a;border-radius:4px;font-size:11px;font-weight:700;">' + i18nText.slipBadge + '</div>' +
-				'</div>' +
-				'<div style="text-align:center;background:#f8fafc;border:1.5px solid #0f172a;border-radius:6px;padding:8px 6px;margin-bottom:10px;">' +
-				'<div style="font-size:10.5px;font-weight:600;color:#475569;margin-bottom:2px;">' + i18nText.vehLbl + '</div>' +
-				'<div style="font-size:16px;font-weight:800;">' + vehText + '</div>' +
-				'</div>' +
-				'<table style="width:100%;border-collapse:collapse;margin-bottom:10px;"><tbody>' +
-				'<tr><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#475569;font-weight:600;width:42%;">' + i18nText.invLbl + '</td><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#0f172a;font-weight:700;text-align:right;">' + invText + '</td></tr>' +
-				'<tr><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#475569;font-weight:600;">' + i18nText.catLbl + '</td><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#0f172a;font-weight:700;text-align:right;">' + catText + '</td></tr>' +
-				'<tr><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#475569;font-weight:600;">' + i18nText.timeLbl + '</td><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#0f172a;font-weight:700;text-align:right;">' + timeText + '</td></tr>' +
-				'<tr><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#475569;font-weight:600;">' + i18nText.exitLbl + '</td><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#0f172a;font-weight:700;text-align:right;">' + exitText + '</td></tr>' +
-				'<tr><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#475569;font-weight:600;">' + i18nText.statusLbl + '</td><td style="padding:5px 2px;border-bottom:1px dotted #cbd5e1;color:#0f172a;font-weight:700;text-align:right;">' + statusText + '</td></tr>' +
-				phoneRowHtml +
-				'</tbody></table>' +
-				'<div style="border-top:1.5px dashed #0f172a;border-bottom:1.5px dashed #0f172a;padding:8px 2px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">' +
-				'<span style="font-size:12px;font-weight:700;">' + i18nText.feeLbl + '</span>' +
-				'<strong style="font-size:15.5px;font-weight:800;">' + feeText + '</strong>' +
-				'</div>' +
-				'<div style="font-size:11px;color:#334155;background:#f8fafc;border-left:3px solid #0f172a;padding:6px 8px;margin-bottom:10px;">' + i18nText.noteTxt + '</div>' +
-				'<div style="text-align:center;font-size:11px;color:#334155;"><strong>' + i18nText.wishTxt + '</strong><br><span>' + brandTitle + '</span></div>' +
-				'</body></html>'
-			);
+			doc.write(slipHtml);
 			doc.close();
 
 			setTimeout(function() {
 				frameWin.focus();
 				frameWin.print();
-			}, 150);
+			}, 200);
 		}
-
 		document.querySelectorAll('.ifs-trigger-slip-print').forEach(function(btn) {
 			btn.addEventListener('click', function(e) {
 				e.preventDefault();
 				printSlipData({
 					inv: this.getAttribute('data-inv'),
 					veh: this.getAttribute('data-veh'),
+					vehType: this.getAttribute('data-veh-type'),
 					cat: this.getAttribute('data-cat'),
 					phone: this.getAttribute('data-phone'),
 					time: this.getAttribute('data-time'),
@@ -1636,6 +1812,7 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 				printSlipData({
 					inv: this.getAttribute('data-inv'),
 					veh: this.getAttribute('data-veh'),
+					vehType: this.getAttribute('data-veh-type'),
 					cat: this.getAttribute('data-cat'),
 					phone: this.getAttribute('data-phone'),
 					time: this.getAttribute('data-time'),
@@ -1649,15 +1826,17 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		// সদ্য চেক-ইন হয়ে থাকলে একই পেজ থেকেই অটোমেটিক প্রিন্ট ডায়ালগ ওপেন করা
 		<?php if ( $just_checked_in ) : ?>
 			<?php
-			$j_time = ifs_parking_format_local_datetime( $just_checked_in->entry_time, 'j M, Y - h:i A' );
-			$j_exit = ! empty( $just_checked_in->exit_time ) ? ifs_parking_format_local_datetime( $just_checked_in->exit_time, 'j M, Y - h:i A' ) : __( 'এখনও পার্কিংয়ে', 'ifs-parking' );
-			$j_inv  = ! empty( $just_checked_in->reference_id ) ? strtok( $just_checked_in->reference_id, ' [' ) : 'NPMS-' . $just_checked_in->id;
+			$j_split = ifs_parking_split_veh_and_category( $just_checked_in->parking_type, $categories_by_slug, $veh_labels_bd );
+			$j_time  = ifs_parking_format_local_datetime( $just_checked_in->entry_time, 'j M, Y - h:i A' );
+			$j_exit  = ! empty( $just_checked_in->exit_time ) ? ifs_parking_format_local_datetime( $just_checked_in->exit_time, 'j M, Y - h:i A' ) : __( 'এখনও পার্কিংয়ে', 'ifs-parking' );
+			$j_inv   = ! empty( $just_checked_in->reference_id ) ? strtok( $just_checked_in->reference_id, ' [' ) : 'NPMS-' . $just_checked_in->id;
 			?>
 			setTimeout(function() {
 				printSlipData({
 					inv: <?php echo wp_json_encode( $j_inv ); ?>,
 					veh: <?php echo wp_json_encode( $just_checked_in->vehicle_number ); ?>,
-					cat: <?php echo wp_json_encode( ucwords( str_replace( '-', ' - ', (string) $just_checked_in->parking_type ) ) ); ?>,
+					vehType: <?php echo wp_json_encode( $j_split['veh_type_label'] ); ?>,
+					cat: <?php echo wp_json_encode( $j_split['category_label'] ); ?>,
 					phone: <?php echo wp_json_encode( ifs_parking_veh_bn_num( $just_checked_in->driver_phone ) ); ?>,
 					time: <?php echo wp_json_encode( $j_time ); ?>,
 					exit: <?php echo wp_json_encode( $j_exit ); ?>,
@@ -1670,15 +1849,17 @@ function ifs_parking_render_vehicle_form( $table_cats, $log_id, $action, $site_t
 		// সদ্য রিলিজ (Check-Out) হয়ে থাকলে অটোমেটিক এক্সিট স্লিপ প্রিন্ট ডায়ালগ ওপেন করা
 		<?php if ( $just_released_item ) : ?>
 			<?php
-			$r_time = ifs_parking_format_local_datetime( $just_released_item->entry_time, 'j M, Y - h:i A' );
-			$r_exit = ifs_parking_format_local_datetime( $just_released_item->exit_time, 'j M, Y - h:i A' );
-			$r_inv  = ! empty( $just_released_item->reference_id ) ? strtok( $just_released_item->reference_id, ' [' ) : 'NPMS-' . $just_released_item->id;
+			$r_split = ifs_parking_split_veh_and_category( $just_released_item->parking_type, $categories_by_slug, $veh_labels_bd );
+			$r_time  = ifs_parking_format_local_datetime( $just_released_item->entry_time, 'j M, Y - h:i A' );
+			$r_exit  = ifs_parking_format_local_datetime( $just_released_item->exit_time, 'j M, Y - h:i A' );
+			$r_inv   = ! empty( $just_released_item->reference_id ) ? strtok( $just_released_item->reference_id, ' [' ) : 'NPMS-' . $just_released_item->id;
 			?>
 			setTimeout(function() {
 				printSlipData({
 					inv: <?php echo wp_json_encode( $r_inv ); ?>,
 					veh: <?php echo wp_json_encode( $just_released_item->vehicle_number ); ?>,
-					cat: <?php echo wp_json_encode( ucwords( str_replace( '-', ' - ', (string) $just_released_item->parking_type ) ) ); ?>,
+					vehType: <?php echo wp_json_encode( $r_split['veh_type_label'] ); ?>,
+					cat: <?php echo wp_json_encode( $r_split['category_label'] ); ?>,
 					phone: <?php echo wp_json_encode( ifs_parking_veh_bn_num( $just_released_item->driver_phone ) ); ?>,
 					time: <?php echo wp_json_encode( $r_time ); ?>,
 					exit: <?php echo wp_json_encode( $r_exit ); ?>,

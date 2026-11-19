@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * ইংরেজি সংখ্যাকে বাংলা সংখ্যায় রূপান্তর করার হেল্পার ফাংশন।
+ * ইংরেজি সংখ্যাকে বাংলা সংখ্যায় রূপান্তর করার হেল্পার ফাংশন।
  *
  * @param string|int|float $number ইনপুট সংখ্যা বা স্ট্রিং।
  * @return string
@@ -27,7 +27,39 @@ function ifs_parking_cat_list_bn_num( $number ) {
 }
 
 /**
- * ডিপার্টমেন্ট অনুযায়ী গ্রুপ করা ক্যাটাগরি তালিকা রেন্ডারার।
+ * গাড়ির ধরণ অনুযায়ী বাংলা নাম রিটার্ন করার হেল্পার।
+ *
+ * @param string $raw_type      গাড়ির ধরণ বা ক্যাটাগরি স্লাগ।
+ * @param array  $veh_labels_bd বাংলা লেবেল ম্যাপ।
+ * @return string
+ */
+function ifs_parking_cat_resolve_veh_label( $raw_type, $veh_labels_bd ) {
+	$clean = trim( (string) $raw_type );
+	if ( '' === $clean ) {
+		return __( 'সাধারণ', 'ifs-parking' );
+	}
+
+	if ( isset( $veh_labels_bd[ $clean ] ) ) {
+		return $veh_labels_bd[ $clean ];
+	}
+
+	$base_key = $clean;
+	if ( false !== strpos( $clean, '-' ) ) {
+		$parts    = explode( '-', $clean );
+		$base_key = trim( $parts[0] );
+	}
+
+	foreach ( $veh_labels_bd as $key => $label ) {
+		if ( strtolower( $key ) === strtolower( $base_key ) ) {
+			return $label;
+		}
+	}
+
+	return ucfirst( $base_key );
+}
+
+/**
+ * ডিপার্টমেন্ট অনুযায়ী গ্রুপ করা ক্যাটাগরি তালিকা রেন্ডারার।
  *
  * @param string $table_cats      ক্যাটাগরি টেবিল নাম।
  * @param string $currency_symbol কারেন্সি প্রতীক।
@@ -36,9 +68,43 @@ function ifs_parking_cat_list_bn_num( $number ) {
 function ifs_parking_render_category_list( $table_cats, $currency_symbol ) {
 	global $wpdb;
 
-	$categories = array();
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-	if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_cats ) ) === $table_cats ) {
+	$has_cats_table = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_cats ) ) === $table_cats );
+
+	// ডিলিট অ্যাকশন হ্যান্ডলার (action=delete_dept&dept=...).
+	// phpcs:disable WordPress.Security.NonceVerification.Recommended
+	$req_action = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : '';
+	$req_dept   = isset( $_GET['dept'] ) ? sanitize_text_field( wp_unslash( rawurldecode( $_GET['dept'] ) ) ) : '';
+	// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+	if ( $has_cats_table && 'delete_dept' === $req_action && '' !== $req_dept && current_user_can( 'manage_options' ) ) {
+		check_admin_referer( 'ifs_delete_dept_' . $req_dept );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$deleted = $wpdb->delete(
+			$table_cats,
+			array( 'department' => $req_dept ),
+			array( '%s' )
+		);
+
+		if ( false !== $deleted ) {
+			echo '<div class="notice notice-success is-dismissible ifs-custom-notice" style="margin-bottom: 14px;">
+					<p class="ifs-notice-text">
+						<svg class="ifs-notice-svg" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+						' . esc_html(
+							sprintf(
+								/* translators: %s: ডিপার্টমেন্টের নাম */
+								__( '"%s" ডিপার্টমেন্ট এবং এর সকল প্যাকেজ সফলভাবে মুছে ফেলা হয়েছে!', 'ifs-parking' ),
+								$req_dept
+							)
+						) . '
+					</p>
+				  </div>';
+		}
+	}
+
+	$categories = array();
+	if ( $has_cats_table ) {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$categories = $wpdb->get_results( "SELECT * FROM `{$table_cats}` ORDER BY department ASC, id ASC" );
 	}
@@ -52,22 +118,21 @@ function ifs_parking_render_category_list( $table_cats, $currency_symbol ) {
 	}
 
 	$veh_labels_bd = array(
+		'Bike'  => __( 'বাইক', 'ifs-parking' ),
 		'Car'   => __( 'কার', 'ifs-parking' ),
+		'CNG'   => __( 'সিএনজি', 'ifs-parking' ),
+		'Cycle' => __( 'সাইকেল', 'ifs-parking' ),
 		'Noah'  => __( 'নোয়াহ', 'ifs-parking' ),
 		'Hiace' => __( 'হাইয়েস', 'ifs-parking' ),
-		'CNG'   => __( 'সিএনজি', 'ifs-parking' ),
 		'Truck' => __( 'ট্রাক', 'ifs-parking' ),
-		'Bike'  => __( 'বাইক', 'ifs-parking' ),
-		'Cycle' => __( 'সাইকেল', 'ifs-parking' ),
 	);
 
-	// আনইউজড ভেরিয়েবল এড়াতে কারেন্সি ফিল্টার রেফারেন্স রাখা।
 	$active_currency = ! empty( $currency_symbol ) ? $currency_symbol : '৳';
 	?>
 	<style>
-		/* ক্যাটাগরি তালিকা রেসপনসিভনেস ও প্রমিত বাংলা টাইপোগ্রাফি */
+		/* ক্যাটাগরি তালিকা রেসপনসিভনেস ও সিস্টেম টাইপোগ্রাফি */
 		.ifs-table-container-card {
-			font-family: 'Hind Siliguri', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+			font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 		}
 		.ifs-list-header {
 			display: flex;
@@ -83,7 +148,7 @@ function ifs_parking_render_category_list( $table_cats, $currency_symbol ) {
 			-webkit-overflow-scrolling: touch;
 		}
 		.ifs-custom-data-table {
-			min-width: 680px;
+			min-width: 640px;
 		}
 		.ifs-popup-overlay {
 			position: fixed;
@@ -168,7 +233,6 @@ function ifs_parking_render_category_list( $table_cats, $currency_symbol ) {
 						<th><?php esc_html_e( 'ডিপার্টমেন্ট', 'ifs-parking' ); ?></th>
 						<th><?php esc_html_e( 'প্যাকেজ সংখ্যা', 'ifs-parking' ); ?></th>
 						<th><?php esc_html_e( 'অন্তর্ভুক্ত গাড়ির ধরণসমূহ', 'ifs-parking' ); ?></th>
-						<th><?php esc_html_e( 'রেট সারসংক্ষেপ', 'ifs-parking' ); ?></th>
 						<th class="ifs-col-actions-lg"><?php esc_html_e( 'অ্যাকশন', 'ifs-parking' ); ?></th>
 					</tr>
 				</thead>
@@ -207,9 +271,10 @@ function ifs_parking_render_category_list( $table_cats, $currency_symbol ) {
 							$unique_vehs    = array_unique( wp_list_pluck( $dept_items, 'vehicle_type' ) );
 							$localized_vehs = array();
 							foreach ( $unique_vehs as $v_item ) {
-								$localized_vehs[] = isset( $veh_labels_bd[ $v_item ] ) ? $veh_labels_bd[ $v_item ] : $v_item;
+								$localized_vehs[] = ifs_parking_cat_resolve_veh_label( $v_item, $veh_labels_bd );
 							}
-							$pkg_count_bn = ifs_parking_cat_list_bn_num( count( $dept_items ) );
+							$localized_vehs = array_unique( $localized_vehs );
+							$pkg_count_bn   = ifs_parking_cat_list_bn_num( count( $dept_items ) );
 							?>
 							<tr>
 								<td>
@@ -236,19 +301,6 @@ function ifs_parking_render_category_list( $table_cats, $currency_symbol ) {
 										<?php echo esc_html( implode( ', ', $localized_vehs ) ); ?>
 									</span>
 								</td>
-								<td>
-									<small class="ifs-rate-summary-tag">
-										<?php
-										echo esc_html(
-											sprintf(
-												/* translators: %s: সক্রিয় কনফিগারেশন সংখ্যা */
-												__( '%s টি কনফিগারেশন সক্রিয়', 'ifs-parking' ),
-												$pkg_count_bn
-											)
-										);
-										?>
-									</small>
-								</td>
 								<td class="ifs-td-action-right">
 									<div class="ifs-action-buttons-group">
 										<a href="<?php echo esc_url( $view_url ); ?>" class="ifs-btn-action ifs-btn-view" title="<?php esc_attr_e( 'বিস্তারিত দেখুন', 'ifs-parking' ); ?>">
@@ -259,17 +311,19 @@ function ifs_parking_render_category_list( $table_cats, $currency_symbol ) {
 											<svg class="ifs-svg-xs" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
 											<?php esc_html_e( 'এডিট', 'ifs-parking' ); ?>
 										</a>
-										<button type="button" class="ifs-btn-action ifs-btn-delete ifs-trigger-delete-modal" data-delete-url="<?php echo esc_url( $delete_url ); ?>" data-dept-name="<?php echo esc_attr( $dept_name ); ?>" title="<?php esc_attr_e( 'ডিলিট করুন', 'ifs-parking' ); ?>">
-											<svg class="ifs-svg-xs" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-											<?php esc_html_e( 'ডিলিট', 'ifs-parking' ); ?>
-										</button>
+										<?php if ( current_user_can( 'manage_options' ) ) : ?>
+											<button type="button" class="ifs-btn-action ifs-btn-delete ifs-trigger-delete-modal" data-delete-url="<?php echo esc_url( $delete_url ); ?>" data-dept-name="<?php echo esc_attr( $dept_name ); ?>" title="<?php esc_attr_e( 'ডিলিট করুন', 'ifs-parking' ); ?>">
+												<svg class="ifs-svg-xs" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+												<?php esc_html_e( 'ডিলিট', 'ifs-parking' ); ?>
+											</button>
+										<?php endif; ?>
 									</div>
 								</td>
 							</tr>
 						<?php endforeach; ?>
 					<?php else : ?>
 						<tr>
-							<td colspan="5" class="ifs-empty-table-cell"><?php esc_html_e( 'কোনো ক্যাটাগরি পাওয়া যায়নি।', 'ifs-parking' ); ?></td>
+							<td colspan="4" class="ifs-empty-table-cell"><?php esc_html_e( 'কোনো ক্যাটাগরি পাওয়া যায়নি।', 'ifs-parking' ); ?></td>
 						</tr>
 					<?php endif; ?>
 				</tbody>
@@ -303,6 +357,12 @@ function ifs_parking_render_category_list( $table_cats, $currency_symbol ) {
 		var msgBefore = <?php echo wp_json_encode( __( 'আপনি কি নিশ্চিতভাবে ', 'ifs-parking' ) ); ?>;
 		var msgAfter  = <?php echo wp_json_encode( __( ' ডিপার্টমেন্ট এবং এর সকল প্যাকেজ মুছে ফেলতে চান?', 'ifs-parking' ) ); ?>;
 
+		function closeDeleteModal() {
+			if (deleteModal) {
+				deleteModal.style.display = 'none';
+			}
+		}
+
 		document.querySelectorAll('.ifs-trigger-delete-modal').forEach(function(btn) {
 			btn.addEventListener('click', function(e) {
 				e.preventDefault();
@@ -322,14 +382,18 @@ function ifs_parking_render_category_list( $table_cats, $currency_symbol ) {
 		});
 
 		if (cancelBtn) {
-			cancelBtn.addEventListener('click', function() {
-				deleteModal.style.display = 'none';
-			});
+			cancelBtn.addEventListener('click', closeDeleteModal);
 		}
 
 		window.addEventListener('click', function(e) {
 			if (e.target === deleteModal) {
-				deleteModal.style.display = 'none';
+				closeDeleteModal();
+			}
+		});
+
+		document.addEventListener('keydown', function(e) {
+			if (e.key === 'Escape' && deleteModal && deleteModal.style.display === 'flex') {
+				closeDeleteModal();
 			}
 		});
 	});
