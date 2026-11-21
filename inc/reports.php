@@ -1,6 +1,6 @@
 <?php
 /**
- * Easy & Flexible Reports & Analytics Module (Clean Print/PDF Window & Reliable Excel Export).
+ * Easy & Flexible Reports & Analytics Module (Paginated Lists, Clean Print/PDF Window & Reliable Excel Export).
  *
  * @package IFS_Parking
  */
@@ -40,7 +40,7 @@ function ifs_parking_render_reports_page() {
 }
 
 /**
- * সহজ ও ফ্লেক্সিবল রিপোর্ট কনটেন্ট রেন্ডারার।
+ * সহজ ও ফ্লেক্সিবল রিপোর্ট কনটেন্ট রেন্ডারার (সব লিস্টে পেজিনেশনসহ)।
  *
  * @return void
  */
@@ -198,7 +198,7 @@ function ifs_parking_render_reports_content() {
 		);
 
 		$logs_query = $wpdb->prepare(
-			"SELECT * FROM `{$table_logs}` WHERE {$where_sql} ORDER BY entry_time DESC LIMIT 500",
+			"SELECT * FROM `{$table_logs}` WHERE {$where_sql} ORDER BY entry_time DESC LIMIT 2000",
 			$params
 		);
 
@@ -341,6 +341,66 @@ function ifs_parking_render_reports_content() {
 			min-width: 660px;
 		}
 
+		/* বাংলা পেজিনেশন বার স্টাইল */
+		.ifs-pagination-bar {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			flex-wrap: wrap;
+			gap: 10px;
+			padding: 12px 16px;
+			border-top: 1px solid #e2e8f0;
+			background: #f8fafc;
+			border-radius: 0 0 12px 12px;
+		}
+		.ifs-page-info {
+			font-size: 13px;
+			font-weight: 600;
+			color: #475569;
+		}
+		.ifs-page-controls {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			flex-wrap: wrap;
+		}
+		.ifs-page-btn {
+			min-width: 36px;
+			height: 36px;
+			padding: 0 11px;
+			border: 1px solid #cbd5e1;
+			background: #ffffff;
+			color: #1e293b;
+			border-radius: 8px;
+			font-size: 13px;
+			font-weight: 700;
+			cursor: pointer;
+			transition: all 0.15s ease;
+		}
+		.ifs-page-btn:hover:not(:disabled) {
+			border-color: #0284c7;
+			color: #0284c7;
+		}
+		.ifs-page-btn.active {
+			background: #0284c7;
+			border-color: #0284c7;
+			color: #ffffff;
+		}
+		.ifs-page-btn:disabled {
+			opacity: 0.45;
+			cursor: not-allowed;
+		}
+		.ifs-per-page-select {
+			height: 36px;
+			border-radius: 8px;
+			border: 1px solid #cbd5e1;
+			padding: 0 8px;
+			font-size: 12.5px;
+			font-weight: 700;
+			color: #334155;
+			background: #ffffff;
+		}
+
 		@media screen and (max-width: 1024px) {
 			.ifs-primary-filter-row {
 				grid-template-columns: repeat(2, 1fr);
@@ -391,6 +451,14 @@ function ifs_parking_render_reports_content() {
 				height: 46px;
 				width: 100%;
 				box-sizing: border-box;
+			}
+			.ifs-pagination-bar {
+				flex-direction: column;
+				align-items: stretch;
+				text-align: center;
+			}
+			.ifs-page-controls {
+				justify-content: center;
 			}
 		}
 	</style>
@@ -556,7 +624,7 @@ function ifs_parking_render_reports_content() {
 			</div>
 
 			<div class="ifs-table-responsive">
-				<table class="wp-list-table widefat fixed striped ifs-custom-data-table ifs-exportable-table" data-title="<?php esc_attr_e( 'ঘণ্টাভিত্তিক রিপোর্ট (Hour-by-Hour)', 'ifs-parking' ); ?>">
+				<table id="ifs-tbl-hourly" class="wp-list-table widefat fixed striped ifs-custom-data-table ifs-exportable-table ifs-paginated-table" data-page-size="12" data-title="<?php esc_attr_e( 'ঘণ্টাভিত্তিক রিপোর্ট (Hour-by-Hour)', 'ifs-parking' ); ?>">
 					<thead>
 						<tr>
 							<th><?php esc_html_e( 'তারিখ ও ঘণ্টা স্লট', 'ifs-parking' ); ?></th>
@@ -573,7 +641,7 @@ function ifs_parking_render_reports_content() {
 								$b_ts       = strtotime( $h_row->hour_bucket );
 								$slot_label = $b_ts ? ifs_parking_reports_bn_num( date_i18n( 'j M, Y | g:00 A - g:59 A', $b_ts ) ) : $h_row->hour_bucket;
 								?>
-								<tr>
+								<tr class="ifs-data-row">
 									<td><strong><?php echo esc_html( $slot_label ); ?></strong></td>
 									<td><?php echo esc_html( ifs_parking_reports_bn_num( (int) $h_row->total_vehicles ) ); ?> <?php esc_html_e( 'টি', 'ifs-parking' ); ?></td>
 									<td><?php echo esc_html( ifs_parking_reports_bn_num( (int) $h_row->active_parked ) ); ?> <?php esc_html_e( 'টি', 'ifs-parking' ); ?></td>
@@ -593,6 +661,7 @@ function ifs_parking_render_reports_content() {
 					</tbody>
 				</table>
 			</div>
+			<div class="ifs-pagination-bar" data-for="ifs-tbl-hourly"></div>
 		</div>
 
 		<!-- ২. দিনভিত্তিক রিপোর্ট (Day-by-Day) -->
@@ -602,7 +671,7 @@ function ifs_parking_render_reports_content() {
 			</div>
 
 			<div class="ifs-table-responsive">
-				<table class="wp-list-table widefat fixed striped ifs-custom-data-table ifs-exportable-table" data-title="<?php esc_attr_e( 'দিনভিত্তিক রিপোর্ট (Day-by-Day)', 'ifs-parking' ); ?>">
+				<table id="ifs-tbl-daily" class="wp-list-table widefat fixed striped ifs-custom-data-table ifs-exportable-table ifs-paginated-table" data-page-size="15" data-title="<?php esc_attr_e( 'দিনভিত্তিক রিপোর্ট (Day-by-Day)', 'ifs-parking' ); ?>">
 					<thead>
 						<tr>
 							<th><?php esc_html_e( 'তারিখ', 'ifs-parking' ); ?></th>
@@ -615,7 +684,7 @@ function ifs_parking_render_reports_content() {
 					<tbody>
 						<?php if ( ! empty( $daily_rows ) ) : ?>
 							<?php foreach ( $daily_rows as $d_row ) : ?>
-								<tr>
+								<tr class="ifs-data-row">
 									<td><strong><?php echo esc_html( ifs_parking_reports_bn_num( date_i18n( 'j M, Y', strtotime( $d_row->log_date ) ) ) ); ?></strong></td>
 									<td><?php echo esc_html( ifs_parking_reports_bn_num( (int) $d_row->total_vehicles ) ); ?> <?php esc_html_e( 'টি', 'ifs-parking' ); ?></td>
 									<td><?php echo esc_html( ifs_parking_reports_bn_num( (int) $d_row->active_parked ) ); ?> <?php esc_html_e( 'টি', 'ifs-parking' ); ?></td>
@@ -635,6 +704,7 @@ function ifs_parking_render_reports_content() {
 					</tbody>
 				</table>
 			</div>
+			<div class="ifs-pagination-bar" data-for="ifs-tbl-daily"></div>
 		</div>
 
 		<!-- ৩. ক্যাটাগরিভিত্তিক রিপোর্ট -->
@@ -644,7 +714,7 @@ function ifs_parking_render_reports_content() {
 			</div>
 
 			<div class="ifs-table-responsive">
-				<table class="wp-list-table widefat fixed striped ifs-custom-data-table ifs-exportable-table" data-title="<?php esc_attr_e( 'ক্যাটাগরিভিত্তিক সামারি', 'ifs-parking' ); ?>">
+				<table id="ifs-tbl-category" class="wp-list-table widefat fixed striped ifs-custom-data-table ifs-exportable-table ifs-paginated-table" data-page-size="15" data-title="<?php esc_attr_e( 'ক্যাটাগরিভিত্তিক সামারি', 'ifs-parking' ); ?>">
 					<thead>
 						<tr>
 							<th><?php esc_html_e( 'পার্কিং ক্যাটাগরি', 'ifs-parking' ); ?></th>
@@ -657,7 +727,7 @@ function ifs_parking_render_reports_content() {
 					<tbody>
 						<?php if ( ! empty( $summary ) ) : ?>
 							<?php foreach ( $summary as $row ) : ?>
-								<tr>
+								<tr class="ifs-data-row">
 									<td><span class="ifs-badge-dept"><?php echo esc_html( ucwords( str_replace( '-', ' - ', (string) $row->parking_type ) ) ); ?></span></td>
 									<td class="ifs-txt-semi"><?php echo esc_html( ifs_parking_reports_bn_num( number_format_i18n( (int) $row->total_vehicles ) ) ); ?> <?php esc_html_e( 'টি গাড়ি', 'ifs-parking' ); ?></td>
 									<td><?php echo esc_html( ifs_parking_reports_bn_num( (int) $row->active_parked ) ); ?> <?php esc_html_e( 'টি', 'ifs-parking' ); ?></td>
@@ -677,6 +747,7 @@ function ifs_parking_render_reports_content() {
 					</tbody>
 				</table>
 			</div>
+			<div class="ifs-pagination-bar" data-for="ifs-tbl-category"></div>
 		</div>
 
 		<!-- ৪. বিস্তারিত এন্ট্রি লগ -->
@@ -687,7 +758,7 @@ function ifs_parking_render_reports_content() {
 			</div>
 
 			<div class="ifs-table-responsive">
-				<table id="ifs-rep-logs-table" class="wp-list-table widefat fixed striped ifs-custom-data-table ifs-exportable-table" data-title="<?php esc_attr_e( 'বিস্তারিত এন্ট্রি লগ', 'ifs-parking' ); ?>">
+				<table id="ifs-rep-logs-table" class="wp-list-table widefat fixed striped ifs-custom-data-table ifs-exportable-table ifs-paginated-table" data-page-size="20" data-title="<?php esc_attr_e( 'বিস্তারিত এন্ট্রি লগ', 'ifs-parking' ); ?>">
 					<thead>
 						<tr>
 							<th><?php esc_html_e( 'গাড়ি নম্বর', 'ifs-parking' ); ?></th>
@@ -705,7 +776,7 @@ function ifs_parking_render_reports_content() {
 								$in_fmt  = ifs_parking_reports_bn_num( date_i18n( 'j M, g:i A', strtotime( $lg->entry_time ) ) );
 								$out_fmt = ! empty( $lg->exit_time ) ? ifs_parking_reports_bn_num( date_i18n( 'j M, g:i A', strtotime( $lg->exit_time ) ) ) : '-';
 								?>
-								<tr>
+								<tr class="ifs-data-row">
 									<td><strong><?php echo esc_html( $lg->vehicle_number ); ?></strong></td>
 									<td><?php echo esc_html( ucwords( str_replace( '-', ' - ', (string) $lg->parking_type ) ) ); ?></td>
 									<td><?php echo esc_html( $in_fmt ); ?></td>
@@ -724,11 +795,17 @@ function ifs_parking_render_reports_content() {
 					</tbody>
 				</table>
 			</div>
+			<div class="ifs-pagination-bar" data-for="ifs-rep-logs-table"></div>
 		</div>
 	</div>
 
 	<script>
 	document.addEventListener('DOMContentLoaded', function() {
+		var bnMap = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+		function toBnDigits(str) {
+			return String(str).replace(/[0-9]/g, function(w) { return bnMap[+w]; });
+		}
+
 		// অ্যাডভান্সড ফিল্টার টগল
 		var advBtn   = document.getElementById('ifs-toggle-adv-filter');
 		var advPanel = document.getElementById('ifs-adv-filter-panel');
@@ -754,18 +831,135 @@ function ifs_parking_render_reports_content() {
 			});
 		});
 
-		// বিস্তারিত লগ টেবিলে ইনস্ট্যান্ট সার্চ
+		// সব রিপোর্ট টেবিলের জন্য প্রমিত বাংলা পেজিনেশন কন্ট্রোলার
+		var paginators = {};
+		function initTablePagination(tableEl) {
+			var tableId  = tableEl.id;
+			var barEl    = document.querySelector('.ifs-pagination-bar[data-for="' + tableId + '"]');
+			var allRows  = Array.prototype.slice.call(tableEl.querySelectorAll('tbody tr.ifs-data-row'));
+			var pageSize = parseInt(tableEl.getAttribute('data-page-size'), 10) || 15;
+			var curPage  = 1;
+			var query    = '';
+
+			if (!barEl || allRows.length === 0) {
+				if (barEl) barEl.style.display = 'none';
+				return;
+			}
+
+			function renderPage() {
+				var matchedRows = allRows.filter(function(tr) {
+					return query === '' || tr.textContent.toLowerCase().indexOf(query) !== -1;
+				});
+
+				var totalItems = matchedRows.length;
+				var totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+				if (curPage > totalPages) curPage = totalPages;
+				if (curPage < 1) curPage = 1;
+
+				var startIdx = (curPage - 1) * pageSize;
+				var endIdx   = startIdx + pageSize;
+
+				allRows.forEach(function(tr) { tr.style.display = 'none'; });
+				matchedRows.slice(startIdx, endIdx).forEach(function(tr) { tr.style.display = ''; });
+
+				barEl.innerHTML = '';
+				if (totalItems === 0) {
+					barEl.style.display = 'none';
+					return;
+				}
+				barEl.style.display = 'flex';
+
+				var showFrom = startIdx + 1;
+				var showTo   = Math.min(endIdx, totalItems);
+
+				var infoDiv = document.createElement('div');
+				infoDiv.className = 'ifs-page-info';
+				infoDiv.textContent = 'মোট ' + toBnDigits(totalItems) + 'টি তথ্যের মধ্যে ' + toBnDigits(showFrom) + ' - ' + toBnDigits(showTo) + ' প্রদর্শিত হচ্ছে (পৃষ্ঠা ' + toBnDigits(curPage) + ' / ' + toBnDigits(totalPages) + ')';
+
+				var ctrlDiv = document.createElement('div');
+				ctrlDiv.className = 'ifs-page-controls';
+
+				// প্রতি পাতায় সংখ্যা নির্বাচন
+				var sizeSel = document.createElement('select');
+				sizeSel.className = 'ifs-per-page-select';
+				[10, 15, 20, 50, 100].forEach(function(sz) {
+					var opt = document.createElement('option');
+					opt.value = sz;
+					opt.textContent = toBnDigits(sz) + 'টি / পাতা';
+					if (sz === pageSize) opt.selected = true;
+					sizeSel.appendChild(opt);
+				});
+				sizeSel.addEventListener('change', function() {
+					pageSize = parseInt(this.value, 10) || 15;
+					curPage  = 1;
+					renderPage();
+				});
+				ctrlDiv.appendChild(sizeSel);
+
+				var prevBtn = document.createElement('button');
+				prevBtn.type = 'button';
+				prevBtn.className = 'ifs-page-btn';
+				prevBtn.textContent = '« আগের';
+				prevBtn.disabled = (curPage <= 1);
+				prevBtn.addEventListener('click', function() {
+					if (curPage > 1) { curPage--; renderPage(); }
+				});
+				ctrlDiv.appendChild(prevBtn);
+
+				var startP = Math.max(1, curPage - 2);
+				var endP   = Math.min(totalPages, curPage + 2);
+				for (var p = startP; p <= endP; p++) {
+					(function(pageNum) {
+						var pBtn = document.createElement('button');
+						pBtn.type = 'button';
+						pBtn.className = 'ifs-page-btn' + (pageNum === curPage ? ' active' : '');
+						pBtn.textContent = toBnDigits(pageNum);
+						pBtn.addEventListener('click', function() {
+							curPage = pageNum;
+							renderPage();
+						});
+						ctrlDiv.appendChild(pBtn);
+					})(p);
+				}
+
+				var nextBtn = document.createElement('button');
+				nextBtn.type = 'button';
+				nextBtn.className = 'ifs-page-btn';
+				nextBtn.textContent = 'পরের »';
+				nextBtn.disabled = (curPage >= totalPages);
+				nextBtn.addEventListener('click', function() {
+					if (curPage < totalPages) { curPage++; renderPage(); }
+				});
+				ctrlDiv.appendChild(nextBtn);
+
+				barEl.appendChild(infoDiv);
+				barEl.appendChild(ctrlDiv);
+			}
+
+			renderPage();
+			paginators[tableId] = {
+				setSearch: function(q) {
+					query   = q;
+					curPage = 1;
+					renderPage();
+				}
+			};
+		}
+
+		document.querySelectorAll('.ifs-paginated-table').forEach(initTablePagination);
+
+		// বিস্তারিত লগ টেবিলে সার্চ + পেজিনেশন সিঙ্ক
 		var logSearch = document.getElementById('ifs-rep-log-search');
 		if (logSearch) {
 			logSearch.addEventListener('input', function() {
 				var q = this.value.toLowerCase().trim();
-				document.querySelectorAll('#ifs-rep-logs-table tbody tr').forEach(function(tr) {
-					tr.style.display = (q === '' || tr.textContent.toLowerCase().indexOf(q) !== -1) ? '' : 'none';
-				});
+				if (paginators['ifs-rep-logs-table']) {
+					paginators['ifs-rep-logs-table'].setSearch(q);
+				}
 			});
 		}
 
-		// ক্লিন রিপোর্ট HTML তৈরির হেল্পার (PDF ও Excel উভয়ের জন্য)
+		// ক্লিন রিপোর্ট HTML তৈরির হেল্পার (পেজিনেশন নির্বিশেষে সব রো এক্সপোর্ট করবে)
 		function buildCleanReportMarkup(isForExcel) {
 			var siteTitle  = <?php echo wp_json_encode( $site_title ); ?>;
 			var phoneText  = <?php echo wp_json_encode( __( 'হেল্পলাইন:', 'ifs-parking' ) . ' ' . ifs_parking_reports_bn_num( $system_phone ) ); ?>;
@@ -801,7 +995,6 @@ function ifs_parking_render_reports_content() {
 				out.push('<h3>' + secTitle + '</h3>');
 				out.push('<table border="1" cellspacing="0" cellpadding="6">');
 				tbl.querySelectorAll('tr').forEach(function(tr) {
-					if (tr.style.display === 'none') return;
 					out.push('<tr>');
 					tr.querySelectorAll('th, td').forEach(function(cell) {
 						var tag = cell.tagName.toLowerCase();
@@ -817,7 +1010,7 @@ function ifs_parking_render_reports_content() {
 			return out.join('');
 		}
 
-		// ১. ক্লিন PDF / প্রিন্ট হ্যান্ডলার (Dedicated A4 Print Window)
+		// ১. ক্লিন PDF / প্রিন্ট হ্যান্ডলার
 		var pdfPrintBtn = document.getElementById('ifs-clean-pdf-print-btn');
 		if (pdfPrintBtn) {
 			pdfPrintBtn.addEventListener('click', function() {
